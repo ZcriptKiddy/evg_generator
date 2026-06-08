@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acceso | Generador DOCX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen bg-zinc-950 text-zinc-950">
+    <main class="flex min-h-screen items-center justify-center px-4 py-8">
+      <section class="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-normal">Acceso seguro</h1>
+          <p class="mt-2 text-sm text-zinc-600">Generador de documentos periciales</p>
+        </div>
+
+        <div id="error-message" class="mt-4 hidden rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          Usuario o contraseña incorrectos.
+        </div>
+
+        <form class="mt-5 space-y-4" method="post" action="/login" autocomplete="on">
+          <label class="block">
+            <span class="text-sm font-medium text-zinc-700">Usuario o correo</span>
+            <input
+              name="username"
+              autocomplete="username"
+              autofocus
+              class="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+              required
+            />
+          </label>
+
+          <label class="block">
+            <span class="text-sm font-medium text-zinc-700">Contraseña</span>
+            <input
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              class="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+              required
+            />
+          </label>
+
+          <button class="w-full rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="submit">
+            Entrar
+          </button>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      if (new URLSearchParams(window.location.search).get("error")) {
+        document.querySelector("#error-message").classList.remove("hidden");
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,138 @@
+INSTRUCCIONES DE INSTALACION Y USO
+Generador DOCX pericial para Windows
+
+Para abrir este archivo en Notepad:
+
+1. Entra a la carpeta del proyecto.
+2. Da doble clic en instructions.txt.
+3. Tambien puedes abrirlo desde CMD con:
+
+notepad instructions.txt
+
+
+A) REQUISITOS
+
+1. Windows 10 o superior.
+2. Python 3.11 o superior.
+3. Instalar Python marcando la opcion "Add Python to PATH".
+4. Git instalado.
+5. Internet solo para instalar dependencias.
+
+
+B) DESCARGAR EL PROYECTO
+
+Abre CMD o PowerShell y ejecuta:
+
+git clone https://github.com/ZcriptKiddy/evg_generator.git
+cd evg_generator
+
+
+C) INSTALAR
+
+Opcion recomendada:
+
+install.bat
+
+Alternativa manual:
+
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+
+
+D) CONFIGURAR
+
+1. Copia el archivo .env.example como .env.
+
+En CMD:
+
+copy .env.example .env
+
+2. Edita .env con Notepad:
+
+notepad .env
+
+3. Variables que debes revisar:
+
+APP_USER=usuario_local
+APP_EMAIL=correo@example.com
+APP_PASSWORD_HASH=hash_generado_con_scripts_set_password
+SESSION_SECRET=cambia_este_valor_por_un_texto_largo_y_secreto
+SESSION_COOKIE_SECURE=false
+SESSION_MAX_AGE_SECONDS=28800
+
+4. Genera la contrasena real despues de instalar:
+
+.venv\Scripts\python.exe scripts\set_password.py
+
+5. No escribas contrasenas reales en .env.example.
+6. No subas .env a GitHub.
+
+
+E) EJECUTAR
+
+Opcion recomendada:
+
+run.bat
+
+Alternativa manual:
+
+.venv\Scripts\activate
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+
+
+F) ABRIR EN NAVEGADOR
+
+Abre:
+
+http://127.0.0.1:8000
+
+
+G) USO BASICO
+
+1. Entra con el usuario y contrasena configurados en .env.
+2. Usa primero Cadena de Custodia.
+3. Usa despues Informe Pericial.
+4. Cadena de Custodia no usa ZIP ni imagenes.
+5. Informe Pericial si puede usar imagenes y ZIP.
+6. Las plantillas default ya vienen cargadas:
+
+templates\Plantilla_Cadena.docx
+templates\Plantilla_Informe.docx
+
+7. Tambien se pueden subir otras plantillas .docx desde la interfaz.
+8. El sistema detecta automaticamente:
+
+{{Txt_...}}
+{{Img_...}}
+
+9. El JSON se actualiza en segundo plano.
+10. Puedes ver o cargar JSON desde el boton "JSON / Datos avanzados".
+11. Si faltan datos, genera:
+
+parcial_<hash>.docx
+
+12. Si esta completo, genera:
+
+completo_<hash>.docx
+
+
+H) SUBIR CAMBIOS A GITHUB
+
+Estos comandos ya los ejecutara Codex para dejar el proyecto publicado:
+
+git status
+git add .
+git commit -m "Preparar proyecto para instalacion y uso local"
+git push origin main
+
+
+NOTAS IMPORTANTES
+
+- No subir .env.
+- No subir .venv.
+- No subir outputs.
+- No subir work_dir.
+- No subir data/history.
+- No subir data/work.
+- No subir documentos generados.

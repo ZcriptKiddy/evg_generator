@@ -1,0 +1,1927 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Generador DOCX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  </head>
+  <body class="min-h-screen bg-zinc-50 text-zinc-950">
+    <main class="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8">
+      <header class="flex flex-col gap-4 border-b border-zinc-200 pb-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-normal">Generador DOCX</h1>
+          <p class="mt-1 text-sm text-zinc-600">Informe pericial y cadena de custodia</p>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <nav class="grid grid-cols-3 gap-2 rounded-lg bg-zinc-200 p-1 text-sm font-medium text-zinc-700">
+            <button data-tab="cadena" class="tab-btn rounded-md bg-white px-3 py-2 shadow-sm">Cadena de Custodia</button>
+            <button data-tab="informe" class="tab-btn rounded-md px-3 py-2">Informe Pericial</button>
+            <button data-tab="historial" class="tab-btn rounded-md px-3 py-2">Historial</button>
+          </nav>
+          <form method="post" action="/logout">
+            <button class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="submit">
+              Cerrar sesión
+            </button>
+          </form>
+        </div>
+      </header>
+
+      <section id="status" class="mt-4 hidden rounded-md border px-4 py-3 text-sm"></section>
+      <section id="generation-result" class="mt-4 hidden rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-950"></section>
+
+      <section id="tab-cadena" class="tab-panel grid flex-1 gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <form id="cadena-form" class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+          <div class="grid gap-3 xl:grid-cols-[1fr_auto] xl:items-start">
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <button id="use-default-cadena-template" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
+                Usar plantilla actual
+              </button>
+              <label class="inline-flex cursor-pointer items-center justify-center rounded-md border border-teal-400 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-900 hover:bg-teal-100">
+                Subir otra plantilla
+                <input id="cadena-template-file" name="template_file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" />
+              </label>
+              <button id="open-cadena-fields-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
+                Ver campos detectados
+              </button>
+              <button id="open-cadena-json-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
+                JSON / Datos avanzados
+              </button>
+            </div>
+            <button class="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="submit">
+              Generar Word
+            </button>
+          </div>
+          <div class="mt-3 grid gap-2 text-sm text-zinc-600 sm:grid-cols-2">
+            <p id="cadena-template-name">Plantilla: templates/Plantilla_Cadena.docx</p>
+            <p id="cadena-img-note">Solo campos de texto</p>
+          </div>
+          <select
+            id="cadena-template"
+            name="template_id"
+            class="hidden"
+          >
+            <option value="">Cargando plantillas...</option>
+          </select>
+          <textarea
+            id="cadena-json"
+            name="json_text"
+            spellcheck="false"
+            class="hidden"
+          ></textarea>
+          <section id="cadena-missing-warning" class="mt-4 hidden rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"></section>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2">
+            <div class="rounded-md border border-zinc-200 bg-zinc-50 p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Campos detectados</p>
+              <p id="cadena-field-count" class="mt-1 text-sm text-zinc-700">Sin analizar</p>
+            </div>
+            <div class="rounded-md border border-zinc-200 bg-zinc-50 p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Imagenes</p>
+              <p id="cadena-image-count" class="mt-1 text-sm text-zinc-700">No se usan en Cadena</p>
+            </div>
+          </div>
+        </form>
+        <aside class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-500">Plantilla</h3>
+          <p class="mt-3 text-sm text-zinc-700">Archivo seleccionado:</p>
+          <code id="cadena-template-current" class="mt-2 block rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-800">templates/Plantilla_Cadena.docx</code>
+          <p class="mt-4 text-sm text-zinc-700">Campos:</p>
+          <code id="cadena-placeholder-summary" class="mt-2 block rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-800">Analizando plantilla...</code>
+          <p id="cadena-img-warning" class="mt-4 hidden rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"></p>
+        </aside>
+      </section>
+
+      <section id="tab-informe" class="tab-panel hidden grid flex-1 gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <form id="informe-form" class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+          <div class="grid gap-3 xl:grid-cols-[1fr_auto] xl:items-start">
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <button id="use-default-template" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
+                Usar plantilla actual
+              </button>
+              <label class="inline-flex cursor-pointer items-center justify-center rounded-md border border-teal-400 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-900 hover:bg-teal-100">
+                Subir otra plantilla
+                <input id="informe-template-file" name="template_file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" />
+              </label>
+              <label class="inline-flex cursor-pointer items-center justify-center rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">
+                Subir ZIP
+                <input id="zip-file" name="images_zip" type="file" accept=".zip,application/zip" class="hidden" />
+              </label>
+              <button id="open-fields-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
+                Ver campos detectados
+              </button>
+              <button id="open-zip-editor" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled>
+                Ver imagenes detectadas
+              </button>
+              <button id="open-json-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
+                JSON / Datos avanzados
+              </button>
+            </div>
+            <button class="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="submit">
+              Generar Word
+            </button>
+          </div>
+          <div class="mt-3 grid gap-2 text-sm text-zinc-600 sm:grid-cols-2">
+            <p id="informe-template-name">Plantilla: templates/Plantilla_Informe.docx</p>
+            <p id="zip-name">ZIP pendiente</p>
+          </div>
+          <select
+            id="informe-template"
+            name="template_id"
+            class="hidden"
+          >
+            <option value="">Cargando plantillas...</option>
+          </select>
+          <textarea
+            id="informe-json"
+            name="json_text"
+            spellcheck="false"
+            class="hidden"
+          ></textarea>
+          <section id="missing-warning" class="mt-4 hidden rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"></section>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2">
+            <div class="rounded-md border border-zinc-200 bg-zinc-50 p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Campos detectados</p>
+              <p id="field-count" class="mt-1 text-sm text-zinc-700">Sin analizar</p>
+            </div>
+            <div class="rounded-md border border-zinc-200 bg-zinc-50 p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Fotografias detectadas</p>
+              <p id="image-count" class="mt-1 text-sm text-zinc-700">Sin analizar</p>
+            </div>
+          </div>
+        </form>
+        <aside class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-500">Plantilla</h3>
+          <p class="mt-3 text-sm text-zinc-700">Archivo seleccionado:</p>
+          <code id="informe-template-current" class="mt-2 block rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-800">templates/Plantilla_Informe.docx</code>
+          <p class="mt-4 text-sm text-zinc-700">Campos:</p>
+          <code id="informe-placeholder-summary" class="mt-2 block rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-800">Analizando plantilla...</code>
+          <p class="mt-4 text-sm text-zinc-700">Imagenes en ZIP:</p>
+          <code id="informe-zip-summary" class="mt-2 block rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-800">ZIP pendiente</code>
+        </aside>
+      </section>
+
+      <section id="tab-historial" class="tab-panel hidden flex-1 py-5">
+        <div class="w-full rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 class="text-lg font-semibold">Historial</h2>
+            <button id="refresh-history" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
+              Actualizar
+            </button>
+          </div>
+          <div class="mt-4 overflow-x-auto">
+            <table class="w-full min-w-[760px] border-collapse text-left text-sm">
+              <thead class="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+                <tr>
+                  <th class="py-3 pr-4">Fecha</th>
+                  <th class="py-3 pr-4">Tipo</th>
+                  <th class="py-3 pr-4">Referencia</th>
+                  <th class="py-3 pr-4">Peso</th>
+                  <th class="py-3 pr-4">Imagenes</th>
+                  <th class="py-3 pr-4">Archivos</th>
+                </tr>
+              </thead>
+              <tbody id="history-body" class="divide-y divide-zinc-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="loading-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/60 p-4">
+      <div class="w-full max-w-sm rounded-lg bg-white p-6 text-center shadow-xl" role="dialog" aria-modal="true" aria-labelledby="loading-title">
+        <div class="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-teal-700"></div>
+        <h2 id="loading-title" class="mt-4 text-lg font-semibold">Generando Word</h2>
+        <p id="loading-message" class="mt-2 text-sm text-zinc-600">Espera un momento...</p>
+      </div>
+    </div>
+
+    <div id="fields-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-zinc-950/60 p-3">
+      <div class="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="fields-modal-title">
+        <header class="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 id="fields-modal-title" class="text-lg font-semibold">Campos detectados</h2>
+            <p id="fields-modal-count" class="mt-1 text-sm text-zinc-600"></p>
+          </div>
+          <button id="close-fields-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
+            Cerrar
+          </button>
+        </header>
+        <section class="min-h-0 flex-1 overflow-y-auto p-4">
+          <div id="cadena-fields" class="hidden grid gap-4 lg:grid-cols-2"></div>
+          <div id="informe-fields" class="grid gap-4 lg:grid-cols-2"></div>
+        </section>
+        <footer class="border-t border-zinc-200 p-4">
+          <p class="text-sm text-zinc-600">Los cambios se guardan automaticamente en el JSON interno.</p>
+        </footer>
+      </div>
+    </div>
+
+    <div id="zip-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-zinc-950/60 p-3">
+      <div class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-lg bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="zip-modal-title">
+        <header class="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 id="zip-modal-title" class="text-lg font-semibold">Imagenes detectadas</h2>
+            <p id="zip-modal-count" class="mt-1 text-sm text-zinc-600"></p>
+          </div>
+          <button id="close-zip-editor" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
+            Cerrar
+          </button>
+        </header>
+        <div class="grid min-h-0 flex-1 gap-0 lg:grid-cols-[360px_minmax(0,1fr)]">
+          <aside class="min-h-[220px] overflow-y-auto border-b border-zinc-200 p-3 lg:border-b-0 lg:border-r">
+            <div class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+              Arrastra una imagen hacia la fotografia detectada correspondiente.
+            </div>
+            <div id="zip-image-list" class="grid grid-cols-2 gap-2"></div>
+          </aside>
+          <section class="min-h-0 overflow-y-auto p-4">
+            <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-500">Fotografias de la plantilla</h3>
+              <p id="drop-zone-summary" class="text-sm text-zinc-500"></p>
+            </div>
+            <div id="informe-image-fields" class="grid gap-3 xl:grid-cols-2"></div>
+          </section>
+        </div>
+        <footer class="flex flex-col gap-3 border-t border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p id="zip-modal-summary" class="text-sm text-zinc-600"></p>
+          <button id="apply-zip-editor" class="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="button">
+            Usar estas imagenes
+          </button>
+        </footer>
+        <input id="replace-image-input" type="file" accept="image/*" class="hidden" />
+      </div>
+    </div>
+
+    <div id="json-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-zinc-950/60 p-3">
+      <div class="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="json-modal-title">
+        <header class="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 id="json-modal-title" class="text-lg font-semibold">JSON / Datos avanzados</h2>
+            <p id="json-modal-subtitle" class="mt-1 text-sm text-zinc-600">Datos sincronizados con el formulario activo.</p>
+          </div>
+          <button id="close-json-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
+            Cerrar
+          </button>
+        </header>
+        <section class="min-h-0 flex-1 p-4">
+          <textarea
+            id="advanced-json"
+            spellcheck="false"
+            class="h-[58vh] w-full resize-y rounded-md border border-zinc-300 bg-zinc-950 p-4 font-mono text-sm leading-6 text-zinc-100 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+          ></textarea>
+        </section>
+        <footer class="flex flex-col gap-2 border-t border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex flex-wrap gap-2">
+            <label class="inline-flex cursor-pointer items-center justify-center rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50">
+              Cargar JSON
+              <input id="advanced-json-loader" type="file" accept=".json,application/json" class="hidden" />
+            </label>
+            <button id="copy-json" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">Copiar</button>
+            <button id="download-json" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">Descargar</button>
+          </div>
+          <button id="apply-json" class="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="button">
+            Cargar al formulario
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <script>
+      const cadenaSample = {
+        Txt_No_Carpeta: "51592",
+        "Txt_Año_Actual": "2026",
+        Txt_Siglas_Unidad: "UEIPD",
+        Txt_Consecutivo: "764",
+        "Txt_Año_Abreviado": "26",
+        Txt_Domicilio: "Calle Estado de Durango número 205, Colonia 18 de Marzo",
+        Txt_Municipio: "Salamanca",
+        Txt_Fecha_Actual: "06 de mayo del año 2026",
+        Txt_Hora_Inicial: "09:18",
+        Txt_Identificador_Indicio: "IA",
+        Txt_Cantidad_Archivos: "20",
+        Txt_Extension_Archivos: "dav",
+        Txt_Cantidad_Discos: "01",
+        Txt_Hora_Embalaje: "09:33",
+        Txt_Fecha_Almacen: "09 de mayo del año 2026",
+        Txt_Hora_Almacen: "15:35"
+      };
+
+      const informeSample = {
+        Txt_OficioInterno: "EV 764/26",
+        Txt_CarpetaInvestigacion: "51592/2026",
+        Txt_NumeroOficio: "9951/2026",
+        Txt_NombreMP: "[Pendiente]",
+        Txt_Cargo_UnidadSolicitante: "[Pendiente]",
+        Txt_UnidadSolicitante: "Unidad Especializada en Investigación de Personas Desaparecidas",
+        Txt_Municipio: "Salamanca",
+        Txt_NumeroEmpleado: "53815",
+        Txt_FechaRecepcion: "06 de mayo del año 2026",
+        Txt_FechaArribo: "06 de mayo del año 2026",
+        Txt_HoraArribo: "09:13 horas",
+        Txt_NombreContacto: "María de Lourdes Cabrera Rodríguez",
+        Txt_CargoContacto: "Propietaria",
+        Txt_Marca_Sistema: "Dahua",
+        Txt_Modelo_Sistema: "DH-XVR5108HS-4KL-I3",
+        Txt_Serie_Sistema: "9K05693PAZ4D6B2",
+        Txt_HoraSistema: "09:18 horas",
+        Txt_FechaSistema: "06 de mayo del año 2026",
+        Txt_HoraLocal: "09:18 horas",
+        Txt_FechaLocal: "06 de mayo del año 2026",
+        Txt_Desfase: "sin desfase apreciable",
+        Txt_HorarioExtraido: "06 de mayo del año 2026, de 04:00 horas a 05:15 horas",
+        Txt_Horario_Solicitado: "06 de mayo del año 2026, de 04:00 horas a 05:15 horas",
+        Txt_ExtensionVideo: "dav",
+        Txt_Hora_Inicio_Cambio: "20:05 horas",
+        Txt_Fecha_Inicio_Cambio: "06 de mayo del año 2026",
+        Txt_Hora_Fin_Cambio: "20:13 horas",
+        Txt_Fecha_Fin_Cambio: "06 de mayo del año 2026",
+        Txt_Identificador_Indicio: "IA",
+        Txt_Descripcion_Indicio: "20 archivos de video digital con extensión dav, contenidos en 01 disco óptico DVD-R de la marca Verbatim con capacidad de 4.7GB/120min, rotulado con la leyenda EV 764/26, así como la firma del suscrito.",
+        Txt_FechaCierre: "09 de mayo del año 2026",
+        Img_Arribo_Domicilio: "1.jpg",
+        Img_Sistema_Videograbacion: "2.jpg",
+        Img_Acceso_Interfaz: "3.jpg",
+        Img_Identificacion_Dispositivo: "4.jpg",
+        Img_Cronologia_Sistema: "5.jpg",
+        Img_Localizacion_Registros: "6.jpg",
+        Img_Canales_Disponibles: "7.jpg",
+        Img_Seleccion_Canales: "8.jpg",
+        Img_Insercion_Medio: "9.jpg",
+        Img_Exportacion_Registros: "10.jpg",
+        Img_Termino_Extraccion: "11.jpg",
+        Img_Verificacion_Integridad: "12.jpg",
+        Img_Generacion_Hash: "13.jpg",
+        Img_Embalaje_Indicio: "14.jpg",
+        Img_Sellado_Indicio: "15.jpg",
+        Img_Cambio_Medio: "16.jpg",
+        Img_Distribucion_Indicio: "17.jpg",
+        Img_Verificacion_Comparativa: "18.jpg",
+        Img_Medio_Idoneo: "19.jpg",
+        Img_Cierre_Procedimiento_Anterior: "20.jpg",
+        Img_Cierre_Procedimiento_Posterior: "21.jpg"
+      };
+
+      const $ = (selector) => document.querySelector(selector);
+      const statusBox = $("#status");
+      const generationResult = $("#generation-result");
+      const loadingModal = $("#loading-modal");
+      const loadingMessage = $("#loading-message");
+      let activeJsonKind = "cadena";
+      let activeFieldsKind = "cadena";
+      let currentResultUrl = "";
+      const imageExtensions = new Set(["jpg", "jpeg", "png", "webp", "bmp", "tif", "tiff"]);
+      const zipState = {
+        originalFile: null,
+        entries: [],
+        selectedIndex: -1,
+        replacingIndex: -1
+      };
+      const templateState = {
+        templates: [],
+        defaults: {
+          cadena: "Plantilla_Cadena.docx",
+          informe: "Plantilla_Informe.docx"
+        }
+      };
+      const cadenaState = {
+        mode: "default",
+        customTemplateFile: null,
+        placeholders: { txt: [], img: [] },
+        payload: {}
+      };
+      const informeState = {
+        mode: "default",
+        customTemplateFile: null,
+        placeholders: { txt: [], img: [] },
+        payload: {},
+        resultUrl: ""
+      };
+
+      loadTemplates();
+
+      document.querySelectorAll(".tab-btn").forEach((button) => {
+        button.addEventListener("click", () => activateTab(button.dataset.tab));
+      });
+
+      function activateTab(tab) {
+        document.querySelectorAll(".tab-btn").forEach((button) => {
+          button.classList.toggle("bg-white", button.dataset.tab === tab);
+          button.classList.toggle("shadow-sm", button.dataset.tab === tab);
+        });
+        document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.add("hidden"));
+        $(`#tab-${tab}`).classList.remove("hidden");
+        if (tab === "historial") loadHistory();
+      }
+
+      $("#use-default-cadena-template").addEventListener("click", useDefaultCadenaTemplate);
+      $("#cadena-template-file").addEventListener("change", handleCadenaTemplateFile);
+      $("#open-cadena-fields-modal").addEventListener("click", () => openFieldsModal("cadena"));
+      $("#open-cadena-json-modal").addEventListener("click", () => openJsonModal("cadena"));
+      $("#use-default-template").addEventListener("click", useDefaultInformeTemplate);
+      $("#informe-template-file").addEventListener("change", handleInformeTemplateFile);
+      $("#zip-file").addEventListener("change", handleZipFile);
+      $("#open-fields-modal").addEventListener("click", () => openFieldsModal("informe"));
+      $("#close-fields-modal").addEventListener("click", closeFieldsModal);
+      $("#open-zip-editor").addEventListener("click", openZipEditor);
+      $("#close-zip-editor").addEventListener("click", closeZipEditor);
+      $("#apply-zip-editor").addEventListener("click", closeZipEditor);
+      $("#replace-image-input").addEventListener("change", replaceSelectedImage);
+      $("#cadena-template").addEventListener("change", () => updateTemplateSummary("cadena"));
+      $("#informe-template").addEventListener("change", () => updateTemplateSummary("informe"));
+      $("#open-json-modal").addEventListener("click", () => openJsonModal("informe"));
+      $("#close-json-modal").addEventListener("click", closeJsonModal);
+      $("#apply-json").addEventListener("click", applyJsonFromModal);
+      $("#copy-json").addEventListener("click", copyJsonFromModal);
+      $("#download-json").addEventListener("click", downloadJsonFromModal);
+      $("#advanced-json-loader").addEventListener("change", loadAdvancedJsonFile);
+
+      $("#cadena-form").addEventListener("submit", submitCadenaGeneration);
+      $("#informe-form").addEventListener("submit", submitInformeGeneration);
+      $("#refresh-history").addEventListener("click", loadHistory);
+
+      async function loadTemplates() {
+        try {
+          const response = await fetch("/api/plantillas");
+          redirectIfUnauthorized(response);
+          if (!response.ok) {
+            throw new Error("No pude cargar la lista de plantillas.");
+          }
+
+          const data = await response.json();
+          templateState.templates = Array.isArray(data.templates) ? data.templates : [];
+          templateState.defaults = {
+            ...templateState.defaults,
+            ...(data.defaults || {})
+          };
+
+          renderTemplateSelect("cadena");
+          renderTemplateSelect("informe");
+          await analyzeInformeTemplate({ useSamples: true });
+          await analyzeCadenaTemplate({ useSamples: true });
+        } catch (error) {
+          renderTemplateError("cadena");
+          renderTemplateError("informe");
+          showStatus(error.message, "error");
+        }
+      }
+
+      function renderTemplateSelect(kind) {
+        const select = $(`#${kind}-template`);
+        if (!templateState.templates.length) {
+          select.innerHTML = `<option value="">No hay plantillas DOCX</option>`;
+          select.disabled = true;
+          updateTemplateSummary(kind);
+          return;
+        }
+
+        select.disabled = false;
+        select.innerHTML = templateState.templates.map((template) => (
+          `<option value="${escapeHtml(template.id)}">${escapeHtml(template.file_name)}</option>`
+        )).join("");
+
+        const preferred = templateState.defaults[kind];
+        const hasPreferred = templateState.templates.some((template) => template.id === preferred);
+        select.value = hasPreferred ? preferred : templateState.templates[0].id;
+        updateTemplateSummary(kind);
+      }
+
+      function renderTemplateError(kind) {
+        const select = $(`#${kind}-template`);
+        select.innerHTML = `<option value="">Error al cargar plantillas</option>`;
+        select.disabled = true;
+        updateTemplateSummary(kind);
+      }
+
+      function updateTemplateSummary(kind) {
+        const selectedId = $(`#${kind}-template`).value;
+        const template = templateState.templates.find((item) => item.id === selectedId);
+        $(`#${kind}-template-current`).textContent = template ? `templates/${template.file_name}` : "Sin plantillas DOCX";
+        if (kind === "cadena") {
+          $("#cadena-template-name").textContent = template ? `Plantilla: templates/${template.file_name}` : "Sin plantillas DOCX";
+        }
+        if (kind === "informe") {
+          $("#informe-template-name").textContent = template ? `Plantilla: templates/${template.file_name}` : "Sin plantillas DOCX";
+        }
+      }
+
+      async function loadJsonFile(event, targetSelector) {
+        const file = event.target.files[0];
+        if (!file) return;
+        $(targetSelector).value = await file.text();
+      }
+
+      async function useDefaultCadenaTemplate() {
+        cadenaState.mode = "default";
+        cadenaState.customTemplateFile = null;
+        $("#cadena-template-file").value = "";
+        updateTemplateSummary("cadena");
+        try {
+          await analyzeCadenaTemplate({ useSamples: true });
+        } catch (error) {
+          showStatus(error.message, "error");
+        }
+      }
+
+      async function handleCadenaTemplateFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        if (!file.name.toLowerCase().endsWith(".docx")) {
+          event.target.value = "";
+          showStatus("La plantilla debe ser un archivo .docx.", "error");
+          return;
+        }
+
+        cadenaState.mode = "custom";
+        cadenaState.customTemplateFile = file;
+        $("#cadena-template-current").textContent = file.name;
+        $("#cadena-template-name").textContent = `Plantilla: ${file.name}`;
+        try {
+          await analyzeCadenaTemplate({ useSamples: false });
+        } catch (error) {
+          showStatus(error.message, "error");
+        }
+      }
+
+      async function analyzeCadenaTemplate({ useSamples }) {
+        showStatus("Analizando plantilla de Cadena de Custodia...", "info");
+        generationResult.classList.add("hidden");
+        const formData = new FormData();
+
+        if (cadenaState.mode === "custom" && cadenaState.customTemplateFile) {
+          formData.set("template_file", cadenaState.customTemplateFile, cadenaState.customTemplateFile.name);
+        } else {
+          formData.set("template_id", $("#cadena-template").value);
+        }
+
+        const response = await fetch("/api/plantilla/analizar", { method: "POST", body: formData });
+        redirectIfUnauthorized(response);
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ detail: "No se pudo analizar la plantilla." }));
+          throw new Error(error.detail || "No se pudo analizar la plantilla.");
+        }
+
+        const placeholders = await response.json();
+        cadenaState.placeholders = {
+          txt: Array.isArray(placeholders.txt) ? placeholders.txt : [],
+          img: Array.isArray(placeholders.img) ? placeholders.img : []
+        };
+        buildCadenaPayload(useSamples);
+        renderCadenaFields();
+        syncCadenaJsonTextarea();
+        hideMissingWarning("#cadena-missing-warning");
+        updateCadenaImageNotice();
+        showStatus("Plantilla de Cadena lista.", "success");
+      }
+
+      function buildCadenaPayload(useSamples) {
+        const nextPayload = {};
+        cadenaState.placeholders.txt.forEach((key) => {
+          const sample = useSamples && Object.prototype.hasOwnProperty.call(cadenaSample, key) ? cadenaSample[key] : "";
+          nextPayload[key] = normalizeTextValueForKey(key, typeof sample === "string" ? sample : "");
+        });
+        cadenaState.payload = nextPayload;
+      }
+
+      function renderCadenaFields() {
+        const fields = $("#cadena-fields");
+        const keys = cadenaState.placeholders.txt;
+        $("#cadena-field-count").textContent = `${keys.length} campos`;
+        $("#cadena-placeholder-summary").textContent = `${keys.length} Txt`;
+
+        if (!keys.length) {
+          fields.innerHTML = `<p class="text-sm text-zinc-500 md:col-span-2">La plantilla no tiene placeholders Txt_.</p>`;
+          return;
+        }
+
+        fields.innerHTML = keys.map((key, index) => {
+          const value = cadenaState.payload[key] || "";
+          const kind = fieldKind(key, value);
+          const label = escapeHtml(fieldLabel(key));
+          const escapedKey = escapeHtml(key);
+          const tabindex = index + 1;
+
+          if (kind === "date") {
+            const isoDate = dateInputValue(value);
+            const displayDate = isoDate ? formatSpanishDate(isoDate) : "";
+            return `
+              <label class="block rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+                <span class="text-sm font-medium text-zinc-700">${label}</span>
+                <input data-cadena-date-display="${escapedKey}" value="${escapeHtml(displayDate)}" class="mt-2 w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700" type="text" readonly />
+                <input data-field-key="${escapedKey}" tabindex="${tabindex}" value="${escapeHtml(isoDate)}" class="cadena-date-field mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" type="date" />
+                <span data-cadena-date-label="${escapedKey}" class="mt-1 block text-xs text-zinc-500">${escapeHtml(displayDate || "Selecciona una fecha")}</span>
+              </label>
+            `;
+          }
+
+          if (kind === "time") {
+            const inputTime = timeInputValue(value);
+            const displayTime = inputTime ? formatTimeValue(inputTime) : "";
+            return `
+              <label class="block rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+                <span class="text-sm font-medium text-zinc-700">${label}</span>
+                <input data-cadena-time-display="${escapedKey}" value="${escapeHtml(displayTime)}" class="mt-2 w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700" type="text" readonly />
+                <input data-field-key="${escapedKey}" tabindex="${tabindex}" value="${escapeHtml(inputTime)}" class="cadena-time-field mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" type="time" />
+                <span data-cadena-time-label="${escapedKey}" class="mt-1 block text-xs text-zinc-500">${escapeHtml(displayTime || "Selecciona una hora")}</span>
+              </label>
+            `;
+          }
+
+          if (kind === "schedule") {
+            return `
+              <label class="block rounded-md border border-zinc-200 bg-white p-3 shadow-sm lg:col-span-2">
+                <span class="text-sm font-medium text-zinc-700">${label}</span>
+                <textarea data-field-key="${escapedKey}" tabindex="${tabindex}" class="cadena-schedule-field mt-2 min-h-[92px] w-full resize-y rounded-md border border-zinc-300 px-3 py-2 text-sm leading-6 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100">${escapeHtml(value)}</textarea>
+                <span class="mt-1 block text-xs text-zinc-500">Ejemplo: de las 00:00 horas del día 06 de mayo del año 2026 a las 00:00 horas del día 07 de mayo del año 2026.</span>
+              </label>
+            `;
+          }
+
+          if (kind === "rich") {
+            return `
+              <section class="rounded-md border border-zinc-200 bg-white p-3 shadow-sm lg:col-span-2">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h4 class="text-sm font-medium text-zinc-700">${label}</h4>
+                  <div class="flex gap-1">
+                    <button class="cadena-rich-command rounded border border-zinc-300 px-2 py-1 text-xs font-semibold hover:bg-zinc-50" data-command="bold" type="button">B</button>
+                    <button class="cadena-rich-command rounded border border-zinc-300 px-2 py-1 text-xs italic hover:bg-zinc-50" data-command="italic" type="button">I</button>
+                    <button class="cadena-rich-command rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50" data-command="insertUnorderedList" type="button">Lista</button>
+                  </div>
+                </div>
+                <div data-field-key="${escapedKey}" tabindex="${tabindex}" contenteditable="true" class="cadena-rich-field mt-2 min-h-[150px] rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100">${escapeHtml(value)}</div>
+              </section>
+            `;
+          }
+
+          return `
+            <label class="block rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+              <span class="text-sm font-medium text-zinc-700">${label}</span>
+              <input data-field-key="${escapedKey}" tabindex="${tabindex}" value="${escapeHtml(value)}" class="cadena-field mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" type="text" />
+            </label>
+          `;
+        }).join("");
+
+        fields.querySelectorAll(".cadena-field, .cadena-date-field, .cadena-time-field, .cadena-schedule-field, .cadena-rich-field").forEach((input) => {
+          input.addEventListener("input", syncCadenaJsonFromFields);
+        });
+        fields.querySelectorAll(".cadena-rich-command").forEach((button) => {
+          button.addEventListener("click", () => {
+            document.execCommand(button.dataset.command, false, null);
+            syncCadenaJsonFromFields();
+          });
+        });
+      }
+
+      function syncCadenaJsonFromFields() {
+        const fields = $("#cadena-fields");
+        fields.querySelectorAll(".cadena-field").forEach((input) => {
+          cadenaState.payload[input.dataset.fieldKey] = input.value;
+        });
+        fields.querySelectorAll(".cadena-date-field").forEach((input) => {
+          const formatted = input.value ? formatSpanishDate(input.value) : "";
+          cadenaState.payload[input.dataset.fieldKey] = formatted;
+          updateDataMatchedValue("data-cadena-date-display", input.dataset.fieldKey, formatted);
+          updateDataMatchedText("data-cadena-date-label", input.dataset.fieldKey, formatted || "Selecciona una fecha");
+        });
+        fields.querySelectorAll(".cadena-time-field").forEach((input) => {
+          const formatted = input.value ? formatTimeValue(input.value) : "";
+          cadenaState.payload[input.dataset.fieldKey] = formatted;
+          updateDataMatchedValue("data-cadena-time-display", input.dataset.fieldKey, formatted);
+          updateDataMatchedText("data-cadena-time-label", input.dataset.fieldKey, formatted || "Selecciona una hora");
+        });
+        fields.querySelectorAll(".cadena-schedule-field").forEach((input) => {
+          cadenaState.payload[input.dataset.fieldKey] = input.value;
+        });
+        fields.querySelectorAll(".cadena-rich-field").forEach((input) => {
+          cadenaState.payload[input.dataset.fieldKey] = input.innerText.trim();
+        });
+        syncCadenaJsonTextarea();
+      }
+
+      function syncCadenaJsonTextarea() {
+        $("#cadena-json").value = JSON.stringify(cadenaState.payload, null, 2);
+      }
+
+      function applyCadenaPayloadToForm(payload) {
+        const nextPayload = {};
+        cadenaState.placeholders.txt.forEach((key) => {
+          const value = payload[key];
+          nextPayload[key] = normalizeTextValueForKey(key, value);
+        });
+        cadenaState.payload = nextPayload;
+        renderCadenaFields();
+        syncCadenaJsonTextarea();
+      }
+
+      function updateCadenaImageNotice() {
+        const count = cadenaState.placeholders.img.length;
+        $("#cadena-image-count").textContent = count ? `${count} Img_ ignoradas` : "No se usan en Cadena";
+        $("#cadena-img-note").textContent = count ? `${count} Img_ detectadas e ignoradas` : "Solo campos de texto";
+        const warning = $("#cadena-img-warning");
+        if (!count) {
+          warning.classList.add("hidden");
+          warning.textContent = "";
+          return;
+        }
+        warning.textContent = `Esta plantilla contiene ${count} placeholders Img_. Cadena de Custodia solo trabaja con campos Txt_, por eso se ignoraran.`;
+        warning.classList.remove("hidden");
+      }
+
+      async function useDefaultInformeTemplate() {
+        informeState.mode = "default";
+        informeState.customTemplateFile = null;
+        $("#informe-template-file").value = "";
+        updateTemplateSummary("informe");
+        try {
+          await analyzeInformeTemplate({ useSamples: true });
+        } catch (error) {
+          showStatus(error.message, "error");
+        }
+      }
+
+      async function handleInformeTemplateFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        if (!file.name.toLowerCase().endsWith(".docx")) {
+          event.target.value = "";
+          showStatus("La plantilla debe ser un archivo .docx.", "error");
+          return;
+        }
+
+        informeState.mode = "custom";
+        informeState.customTemplateFile = file;
+        $("#informe-template-current").textContent = file.name;
+        $("#informe-template-name").textContent = `Plantilla: ${file.name}`;
+        try {
+          await analyzeInformeTemplate({ useSamples: false });
+        } catch (error) {
+          showStatus(error.message, "error");
+        }
+      }
+
+      async function analyzeInformeTemplate({ useSamples }) {
+        showStatus("Analizando plantilla...", "info");
+        generationResult.classList.add("hidden");
+        const formData = new FormData();
+
+        if (informeState.mode === "custom" && informeState.customTemplateFile) {
+          formData.set("template_file", informeState.customTemplateFile, informeState.customTemplateFile.name);
+        } else {
+          formData.set("template_id", $("#informe-template").value);
+        }
+
+        const response = await fetch("/api/plantilla/analizar", { method: "POST", body: formData });
+        redirectIfUnauthorized(response);
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ detail: "No se pudo analizar la plantilla." }));
+          throw new Error(error.detail || "No se pudo analizar la plantilla.");
+        }
+
+        const placeholders = await response.json();
+        informeState.placeholders = {
+          txt: Array.isArray(placeholders.txt) ? placeholders.txt : [],
+          img: Array.isArray(placeholders.img) ? placeholders.img : []
+        };
+        buildInformePayload(useSamples);
+        renderInformeFields();
+        renderImageFields();
+        syncJsonTextarea();
+        hideMissingWarning();
+        showStatus("Plantilla lista.", "success");
+      }
+
+      function buildInformePayload(useSamples) {
+        const nextPayload = {};
+        informeState.placeholders.txt.forEach((key) => {
+          const sample = useSamples && Object.prototype.hasOwnProperty.call(informeSample, key) ? informeSample[key] : "";
+          nextPayload[key] = typeof sample === "string" ? sample : "";
+        });
+        informeState.placeholders.img.forEach((key) => {
+          nextPayload[key] = [];
+        });
+        informeState.payload = nextPayload;
+      }
+
+      function renderInformeFields() {
+        const fields = $("#informe-fields");
+        const keys = informeState.placeholders.txt;
+        $("#field-count").textContent = `${keys.length} campos`;
+        $("#fields-modal-count").textContent = `${keys.length} campos en orden de aparicion`;
+        $("#informe-placeholder-summary").textContent = `${keys.length} Txt, ${informeState.placeholders.img.length} Img`;
+
+        if (!keys.length) {
+          fields.innerHTML = `<p class="text-sm text-zinc-500 md:col-span-2">La plantilla no tiene placeholders Txt_.</p>`;
+          return;
+        }
+
+        fields.innerHTML = keys.map((key, index) => {
+          const value = informeState.payload[key] || "";
+          const kind = fieldKind(key, value);
+          const label = escapeHtml(fieldLabel(key));
+          const escapedKey = escapeHtml(key);
+          const tabindex = index + 1;
+
+          if (kind === "date") {
+            const isoDate = dateInputValue(value);
+            const displayDate = isoDate ? formatSpanishDate(isoDate) : "";
+            return `
+              <label class="block rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+                <span class="text-sm font-medium text-zinc-700">${label}</span>
+                <input
+                  data-date-display="${escapedKey}"
+                  value="${escapeHtml(displayDate)}"
+                  class="mt-2 w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
+                  type="text"
+                  readonly
+                />
+                <input
+                  data-field-key="${escapedKey}"
+                  tabindex="${tabindex}"
+                  value="${escapeHtml(isoDate)}"
+                  class="date-field mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                  type="date"
+                />
+                <span data-date-label="${escapedKey}" class="mt-1 block text-xs text-zinc-500">${escapeHtml(displayDate || "Selecciona una fecha")}</span>
+              </label>
+            `;
+          }
+
+          if (kind === "time") {
+            const inputTime = timeInputValue(value);
+            const displayTime = inputTime ? formatTimeValue(inputTime) : "";
+            return `
+              <label class="block rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+                <span class="text-sm font-medium text-zinc-700">${label}</span>
+                <input
+                  data-time-display="${escapedKey}"
+                  value="${escapeHtml(displayTime)}"
+                  class="mt-2 w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
+                  type="text"
+                  readonly
+                />
+                <input
+                  data-field-key="${escapedKey}"
+                  tabindex="${tabindex}"
+                  value="${escapeHtml(inputTime)}"
+                  class="time-field mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                  type="time"
+                />
+                <span data-time-label="${escapedKey}" class="mt-1 block text-xs text-zinc-500">${escapeHtml(displayTime || "Selecciona una hora")}</span>
+              </label>
+            `;
+          }
+
+          if (kind === "schedule") {
+            return `
+              <label class="block rounded-md border border-zinc-200 bg-white p-3 shadow-sm lg:col-span-2">
+                <span class="text-sm font-medium text-zinc-700">${label}</span>
+                <textarea
+                  data-field-key="${escapedKey}"
+                  tabindex="${tabindex}"
+                  class="schedule-field mt-2 min-h-[92px] w-full resize-y rounded-md border border-zinc-300 px-3 py-2 text-sm leading-6 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                >${escapeHtml(value)}</textarea>
+                <span class="mt-1 block text-xs text-zinc-500">Ejemplo: de las 00:00 horas del día 06 de mayo del año 2026 a las 00:00 horas del día 07 de mayo del año 2026.</span>
+              </label>
+            `;
+          }
+
+          if (kind === "rich") {
+            return `
+              <section class="rounded-md border border-zinc-200 bg-white p-3 shadow-sm lg:col-span-2">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h4 class="text-sm font-medium text-zinc-700">${label}</h4>
+                  <div class="flex gap-1">
+                    <button class="rich-command rounded border border-zinc-300 px-2 py-1 text-xs font-semibold hover:bg-zinc-50" data-command="bold" type="button">B</button>
+                    <button class="rich-command rounded border border-zinc-300 px-2 py-1 text-xs italic hover:bg-zinc-50" data-command="italic" type="button">I</button>
+                    <button class="rich-command rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50" data-command="insertUnorderedList" type="button">Lista</button>
+                  </div>
+                </div>
+                <div
+                  data-field-key="${escapedKey}"
+                  tabindex="${tabindex}"
+                  contenteditable="true"
+                  class="rich-field mt-2 min-h-[150px] rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                >${escapeHtml(value)}</div>
+              </section>
+            `;
+          }
+
+          return `
+            <label class="block rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+              <span class="text-sm font-medium text-zinc-700">${label}</span>
+              <input
+                data-field-key="${escapedKey}"
+                tabindex="${tabindex}"
+                value="${escapeHtml(value)}"
+                class="informe-field mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                type="text"
+              />
+            </label>
+          `;
+        }).join("");
+
+        document.querySelectorAll(".informe-field").forEach((input) => {
+          input.addEventListener("input", syncJsonFromFields);
+        });
+        document.querySelectorAll(".date-field").forEach((input) => {
+          input.addEventListener("input", syncJsonFromFields);
+        });
+        document.querySelectorAll(".time-field").forEach((input) => {
+          input.addEventListener("input", syncJsonFromFields);
+        });
+        document.querySelectorAll(".schedule-field").forEach((input) => {
+          input.addEventListener("input", syncJsonFromFields);
+        });
+        document.querySelectorAll(".rich-field").forEach((input) => {
+          input.addEventListener("input", syncJsonFromFields);
+        });
+        document.querySelectorAll(".rich-command").forEach((button) => {
+          button.addEventListener("click", () => {
+            document.execCommand(button.dataset.command, false, null);
+            syncJsonFromFields();
+          });
+        });
+      }
+
+      function renderImageFields() {
+        const container = $("#informe-image-fields");
+        const keys = informeState.placeholders.img;
+        $("#image-count").textContent = `${keys.length} fotografias`;
+        $("#informe-zip-summary").textContent = zipState.entries.length ? `${zipState.entries.length} imagenes cargadas` : "ZIP pendiente";
+
+        if (!keys.length) {
+          container.innerHTML = `<p class="text-sm text-zinc-500 md:col-span-2">La plantilla no tiene placeholders Img_.</p>`;
+          $("#drop-zone-summary").textContent = "";
+          return;
+        }
+
+        const assignedCount = keys.filter((key) => firstImageValue(informeState.payload[key])).length;
+        $("#drop-zone-summary").textContent = `${assignedCount} de ${keys.length} asignadas`;
+        container.innerHTML = keys.map((key) => {
+          const current = firstImageValue(informeState.payload[key]);
+          const entry = zipState.entries.find((item) => item.name === current);
+
+          return `
+            <section
+              data-image-key="${escapeHtml(key)}"
+              class="image-drop-zone rounded-md border border-dashed ${current ? "border-teal-400 bg-teal-50" : "border-zinc-300 bg-white"} p-3 transition"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <h4 class="text-sm font-semibold text-zinc-800">${escapeHtml(fieldLabel(key))}</h4>
+                  <p class="mt-1 text-xs text-zinc-500">${escapeHtml(key)}</p>
+                </div>
+                <button class="clear-image rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-white" data-image-key="${escapeHtml(key)}" type="button">Limpiar</button>
+              </div>
+              <div class="mt-3 flex min-h-[96px] items-center justify-center rounded-md bg-white/80 p-2 text-sm text-zinc-500">
+                ${
+                  entry
+                    ? `<div class="flex w-full items-center gap-3">
+                        <img src="${entry.url}" alt="" class="h-20 w-20 shrink-0 rounded object-cover" style="transform: rotate(${entry.rotation}deg)" />
+                        <div class="min-w-0">
+                          <p class="truncate font-medium text-zinc-800">${escapeHtml(entry.name)}</p>
+                          <p class="mt-1 text-xs text-zinc-500">Arrastra otra imagen para reemplazarla.</p>
+                        </div>
+                      </div>`
+                    : "Suelta aqui una imagen del ZIP"
+                }
+              </div>
+            </section>
+          `;
+        }).join("");
+
+        document.querySelectorAll(".image-drop-zone").forEach((zone) => {
+          zone.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            zone.classList.add("border-teal-500", "bg-teal-50");
+          });
+          zone.addEventListener("dragleave", () => {
+            zone.classList.remove("border-teal-500", "bg-teal-50");
+          });
+          zone.addEventListener("drop", (event) => {
+            event.preventDefault();
+            zone.classList.remove("border-teal-500", "bg-teal-50");
+            const imageName = event.dataTransfer.getData("text/plain");
+            if (!imageName) return;
+            informeState.payload[zone.dataset.imageKey] = [imageName];
+            syncJsonTextarea();
+            renderImageFields();
+          });
+        });
+        document.querySelectorAll(".clear-image").forEach((button) => {
+          button.addEventListener("click", () => {
+            informeState.payload[button.dataset.imageKey] = [];
+            syncJsonTextarea();
+            renderImageFields();
+          });
+        });
+      }
+
+      function syncJsonFromFields() {
+        document.querySelectorAll(".informe-field").forEach((input) => {
+          informeState.payload[input.dataset.fieldKey] = input.value;
+        });
+        document.querySelectorAll(".date-field").forEach((input) => {
+          const formatted = input.value ? formatSpanishDate(input.value) : "";
+          informeState.payload[input.dataset.fieldKey] = formatted;
+          updateDateDisplay(input.dataset.fieldKey, formatted);
+        });
+        document.querySelectorAll(".time-field").forEach((input) => {
+          const formatted = input.value ? formatTimeValue(input.value) : "";
+          informeState.payload[input.dataset.fieldKey] = formatted;
+          updateTimeDisplay(input.dataset.fieldKey, formatted);
+        });
+        document.querySelectorAll(".schedule-field").forEach((input) => {
+          informeState.payload[input.dataset.fieldKey] = input.value;
+        });
+        document.querySelectorAll(".rich-field").forEach((input) => {
+          informeState.payload[input.dataset.fieldKey] = input.innerText.trim();
+        });
+        syncJsonTextarea();
+      }
+
+      function syncJsonFromImageFields() {
+        syncJsonTextarea();
+      }
+
+      function syncJsonTextarea() {
+        $("#informe-json").value = JSON.stringify(informeState.payload, null, 2);
+      }
+
+      function applyPayloadToForm(payload) {
+        const nextPayload = {};
+        informeState.placeholders.txt.forEach((key) => {
+          const value = payload[key];
+          nextPayload[key] = normalizeTextValueForKey(key, value);
+        });
+        informeState.placeholders.img.forEach((key) => {
+          const value = payload[key];
+          nextPayload[key] = Array.isArray(value) ? value.filter((item) => typeof item === "string" && item.trim()) : (typeof value === "string" && value.trim() ? [value] : []);
+        });
+        informeState.payload = nextPayload;
+        renderInformeFields();
+        renderImageFields();
+        syncJsonTextarea();
+      }
+
+      function firstImageValue(value) {
+        if (Array.isArray(value)) {
+          return value.find((item) => typeof item === "string" && item.trim()) || "";
+        }
+        return typeof value === "string" ? value : "";
+      }
+
+      function fieldLabel(key) {
+        return key.replace(/^(Txt|Img)_/, "").replace(/_/g, " ");
+      }
+
+      function fieldKind(key, value) {
+        const normalized = normalizedFieldText(key);
+        if (isScheduleField(key)) return "schedule";
+        if (normalized.includes("fecha") || parseSpanishDate(value)) return "date";
+        if (normalized.includes("hora") || parseTimeToInput(value)) return "time";
+        if (
+          normalized.includes("descripcion") ||
+          normalized.includes("observacion") ||
+          normalized.includes("conclusion") ||
+          normalized.includes("analisis") ||
+          String(value || "").length > 90
+        ) {
+          return "rich";
+        }
+        return "text";
+      }
+
+      function isScheduleField(key) {
+        return normalizedFieldText(key).includes("horario");
+      }
+
+      function normalizedFieldText(value) {
+        return String(value || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]/g, "");
+      }
+
+      function normalizedValueText(value) {
+        return String(value || "")
+          .trim()
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/\s+/g, " ");
+      }
+
+      function dateInputValue(value) {
+        if (!value) return "";
+        if (/^\d{4}-\d{2}-\d{2}$/.test(String(value).trim())) return String(value).trim();
+        return parseSpanishDate(value) || "";
+      }
+
+      function parseSpanishDate(value) {
+        const match = normalizedValueText(value).match(/^(\d{1,2})\s+de\s+([a-z]+)\s+(?:del\s+ano|de)\s+(\d{4})$/);
+        if (!match) return "";
+        const months = {
+          enero: "01",
+          febrero: "02",
+          marzo: "03",
+          abril: "04",
+          mayo: "05",
+          junio: "06",
+          julio: "07",
+          agosto: "08",
+          septiembre: "09",
+          setiembre: "09",
+          octubre: "10",
+          noviembre: "11",
+          diciembre: "12"
+        };
+        const dayNumber = Number(match[1]);
+        const month = months[match[2]];
+        if (!month || dayNumber < 1 || dayNumber > 31) return "";
+        return `${match[3]}-${month}-${String(dayNumber).padStart(2, "0")}`;
+      }
+
+      function formatSpanishDate(isoValue) {
+        const match = String(isoValue || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return "";
+        const months = [
+          "enero",
+          "febrero",
+          "marzo",
+          "abril",
+          "mayo",
+          "junio",
+          "julio",
+          "agosto",
+          "septiembre",
+          "octubre",
+          "noviembre",
+          "diciembre"
+        ];
+        const monthName = months[Number(match[2]) - 1] || "";
+        if (!monthName) return "";
+        return `${match[3]} de ${monthName} del año ${match[1]}`;
+      }
+
+      function timeInputValue(value) {
+        return parseTimeToInput(value);
+      }
+
+      function parseTimeToInput(value) {
+        const text = normalizedValueText(value).replace(/\./g, "");
+        if (!text) return "";
+        const match = text.match(/^(\d{1,2})(?::(\d{2}))?\s*(horas?|am|pm)?$/);
+        if (!match) return "";
+        let hour = Number(match[1]);
+        const minute = match[2] ? Number(match[2]) : 0;
+        const suffix = match[3] || "";
+        if (!match[2] && !suffix) return "";
+        if (suffix === "pm" && hour < 12) hour += 12;
+        if (suffix === "am" && hour === 12) hour = 0;
+        if (hour > 23 || minute > 59) return "";
+        return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+      }
+
+      function formatTimeValue(inputValue) {
+        const time = parseTimeToInput(inputValue);
+        return time ? `${time} horas` : "";
+      }
+
+      function normalizeTextValueForKey(key, value) {
+        if (value == null) return "";
+        const rawValue = String(value);
+        if (isScheduleField(key)) return rawValue;
+        const kind = fieldKind(key, rawValue);
+        if (kind === "date") {
+          const dateValue = dateInputValue(rawValue);
+          return dateValue ? formatSpanishDate(dateValue) : rawValue;
+        }
+        if (kind === "time") {
+          const timeValue = timeInputValue(rawValue);
+          return timeValue ? formatTimeValue(timeValue) : rawValue;
+        }
+        return rawValue;
+      }
+
+      function updateDateDisplay(key, value) {
+        updateDataMatchedValue("data-date-display", key, value);
+        updateDataMatchedText("data-date-label", key, value || "Selecciona una fecha");
+      }
+
+      function updateTimeDisplay(key, value) {
+        updateDataMatchedValue("data-time-display", key, value);
+        updateDataMatchedText("data-time-label", key, value || "Selecciona una hora");
+      }
+
+      function updateDataMatchedValue(attribute, key, value) {
+        document.querySelectorAll(`[${attribute}]`).forEach((item) => {
+          if (item.getAttribute(attribute) === key) item.value = value;
+        });
+      }
+
+      function updateDataMatchedText(attribute, key, value) {
+        document.querySelectorAll(`[${attribute}]`).forEach((item) => {
+          if (item.getAttribute(attribute) === key) item.textContent = value;
+        });
+      }
+
+      function uniqueValues(values) {
+        return [...new Set(values)];
+      }
+
+      async function handleZipFile(event) {
+        const file = event.target.files[0];
+        clearZipState();
+
+        if (!file) {
+          $("#zip-name").textContent = "ZIP pendiente";
+          $("#open-zip-editor").disabled = true;
+          renderImageFields();
+          return;
+        }
+
+        if (!file.name.toLowerCase().endsWith(".zip")) {
+          $("#zip-file").value = "";
+          $("#zip-name").textContent = "ZIP pendiente";
+          $("#open-zip-editor").disabled = true;
+          showStatus("Selecciona un archivo ZIP con imagenes.", "error");
+          return;
+        }
+
+        if (typeof JSZip === "undefined") {
+          $("#zip-name").textContent = `ZIP: ${file.name}`;
+          showStatus("No pude cargar el visor de ZIP. Puedes generar el Word con el ZIP original.", "error");
+          return;
+        }
+
+        $("#zip-name").textContent = `Leyendo ZIP: ${file.name}`;
+        showStatus("Leyendo imagenes del ZIP...", "info");
+
+        try {
+          const zip = await JSZip.loadAsync(file);
+          const files = Object.values(zip.files)
+            .filter((entry) => !entry.dir)
+            .filter((entry) => !entry.name.startsWith("__MACOSX/"))
+            .filter((entry) => imageExtensions.has(extensionOf(entry.name)));
+
+          const entries = [];
+          for (const entry of files) {
+            const blob = await entry.async("blob");
+            entries.push({
+              name: fileNameOnly(entry.name),
+              blob,
+              originalBlob: blob,
+              url: URL.createObjectURL(blob),
+              rotation: 0,
+              replaced: false
+            });
+          }
+
+          entries.sort((a, b) => naturalCompare(a.name, b.name));
+
+          if (!entries.length) {
+            throw new Error("El ZIP no tiene imagenes compatibles.");
+          }
+
+          zipState.originalFile = file;
+          zipState.entries = entries;
+          zipState.selectedIndex = 0;
+          applyImageSamplesFromZip();
+          renderImageFields();
+          $("#zip-name").textContent = `ZIP: ${file.name} (${entries.length} imagenes)`;
+          $("#open-zip-editor").disabled = false;
+          showStatus("ZIP listo para revisar.", "success");
+        } catch (error) {
+          clearZipState();
+          $("#zip-name").textContent = "ZIP pendiente";
+          $("#zip-file").value = "";
+          $("#open-zip-editor").disabled = true;
+          renderImageFields();
+          showStatus(error.message, "error");
+        }
+      }
+
+      function applyImageSamplesFromZip() {
+        const names = new Set(zipState.entries.map((entry) => entry.name.toLowerCase()));
+        informeState.placeholders.img.forEach((key) => {
+          if (firstImageValue(informeState.payload[key])) return;
+          const sample = informeSample[key];
+          const sampleName = Array.isArray(sample) ? sample[0] : sample;
+          if (typeof sampleName === "string" && names.has(sampleName.toLowerCase())) {
+            informeState.payload[key] = [sampleName];
+          }
+        });
+        syncJsonTextarea();
+      }
+
+      function openFieldsModal(kind = "informe") {
+        activeFieldsKind = kind;
+        $("#fields-modal-title").textContent = kind === "cadena" ? "Campos detectados - Cadena de Custodia" : "Campos detectados - Informe Pericial";
+        $("#cadena-fields").classList.toggle("hidden", kind !== "cadena");
+        $("#informe-fields").classList.toggle("hidden", kind !== "informe");
+        if (kind === "cadena") {
+          renderCadenaFields();
+          $("#fields-modal-count").textContent = `${cadenaState.placeholders.txt.length} campos en orden de aparicion`;
+        } else {
+          renderInformeFields();
+          $("#fields-modal-count").textContent = `${informeState.placeholders.txt.length} campos en orden de aparicion`;
+        }
+        $("#fields-modal").classList.remove("hidden");
+        $("#fields-modal").classList.add("flex");
+      }
+
+      function closeFieldsModal() {
+        if (activeFieldsKind === "cadena") {
+          syncCadenaJsonFromFields();
+        } else {
+          syncJsonFromFields();
+        }
+        $("#fields-modal").classList.add("hidden");
+        $("#fields-modal").classList.remove("flex");
+      }
+
+      function openZipEditor() {
+        if (!zipState.entries.length) {
+          showStatus("Sube primero un ZIP con imagenes.", "error");
+          return;
+        }
+        renderZipEditor();
+        $("#zip-modal").classList.remove("hidden");
+        $("#zip-modal").classList.add("flex");
+      }
+
+      function closeZipEditor() {
+        $("#zip-modal").classList.add("hidden");
+        $("#zip-modal").classList.remove("flex");
+      }
+
+      function renderZipEditor() {
+        $("#zip-modal-count").textContent = `${zipState.entries.length} imagenes cargadas`;
+        $("#zip-modal-summary").textContent = zipSummary();
+
+        const list = $("#zip-image-list");
+        list.innerHTML = zipState.entries.map((entry, index) => {
+          const changed = entry.replaced || entry.rotation !== 0;
+          return `
+            <article
+              class="zip-thumb rounded-md border border-zinc-200 bg-white p-2 shadow-sm"
+              draggable="true"
+              data-index="${index}"
+              data-name="${escapeHtml(entry.name)}"
+            >
+              <div class="flex h-28 items-center justify-center overflow-hidden rounded bg-zinc-100">
+                <img src="${entry.url}" alt="" class="max-h-full max-w-full object-contain" style="transform: rotate(${entry.rotation}deg)" />
+              </div>
+              <p class="mt-2 truncate text-xs font-semibold text-zinc-800">${escapeHtml(entry.name)}</p>
+              <p class="mt-1 text-xs ${changed ? "text-teal-700" : "text-zinc-500"}">${changed ? "Modificada" : "Original"}</p>
+              <div class="mt-2 grid grid-cols-2 gap-1">
+                <button class="rotate-image rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50" data-index="${index}" data-delta="-90" type="button">-90</button>
+                <button class="rotate-image rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50" data-index="${index}" data-delta="90" type="button">+90</button>
+                <button class="replace-image rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50" data-index="${index}" type="button">Cambiar</button>
+                <button class="reset-image rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50" data-index="${index}" type="button">Restaurar</button>
+              </div>
+            </article>
+          `;
+        }).join("");
+
+        document.querySelectorAll(".zip-thumb").forEach((card) => {
+          card.addEventListener("dragstart", (event) => {
+            event.dataTransfer.setData("text/plain", card.dataset.name);
+          });
+        });
+        document.querySelectorAll(".rotate-image").forEach((button) => {
+          button.addEventListener("click", () => rotateImageAt(Number(button.dataset.index), Number(button.dataset.delta)));
+        });
+        document.querySelectorAll(".replace-image").forEach((button) => {
+          button.addEventListener("click", () => {
+            zipState.replacingIndex = Number(button.dataset.index);
+            $("#replace-image-input").click();
+          });
+        });
+        document.querySelectorAll(".reset-image").forEach((button) => {
+          button.addEventListener("click", () => resetImageAt(Number(button.dataset.index)));
+        });
+
+        renderImageFields();
+      }
+
+      function rotateImageAt(index, delta) {
+        const entry = zipState.entries[index];
+        if (!entry) return;
+        entry.rotation = normalizeRotation(entry.rotation + delta);
+        renderZipEditor();
+      }
+
+      function resetImageAt(index) {
+        const entry = zipState.entries[index];
+        if (!entry) return;
+
+        URL.revokeObjectURL(entry.url);
+        entry.blob = entry.originalBlob;
+        entry.url = URL.createObjectURL(entry.originalBlob);
+        entry.rotation = 0;
+        entry.replaced = false;
+        renderZipEditor();
+      }
+
+      async function replaceSelectedImage(event) {
+        const file = event.target.files[0];
+        event.target.value = "";
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+          showStatus("Selecciona un archivo de imagen.", "error");
+          return;
+        }
+
+        const entry = zipState.entries[zipState.replacingIndex];
+        zipState.replacingIndex = -1;
+        if (!entry) return;
+
+        URL.revokeObjectURL(entry.url);
+        entry.blob = file;
+        entry.url = URL.createObjectURL(file);
+        entry.rotation = 0;
+        entry.replaced = true;
+        renderZipEditor();
+      }
+
+      function openJsonModal(kind = "informe") {
+        activeJsonKind = kind;
+        if (kind === "cadena") {
+          syncCadenaJsonFromFields();
+          $("#advanced-json").value = JSON.stringify(cadenaState.payload, null, 2);
+          $("#json-modal-subtitle").textContent = "Datos sincronizados con Cadena de Custodia.";
+        } else {
+          syncJsonFromFields();
+          syncJsonFromImageFields();
+          $("#advanced-json").value = JSON.stringify(informeState.payload, null, 2);
+          $("#json-modal-subtitle").textContent = "Datos sincronizados con Informe Pericial.";
+        }
+        $("#json-modal").classList.remove("hidden");
+        $("#json-modal").classList.add("flex");
+      }
+
+      function closeJsonModal() {
+        $("#json-modal").classList.add("hidden");
+        $("#json-modal").classList.remove("flex");
+      }
+
+      function applyJsonFromModal() {
+        try {
+          const payload = JSON.parse($("#advanced-json").value || "{}");
+          if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+            throw new Error("El JSON debe ser un objeto.");
+          }
+          if (activeJsonKind === "cadena") {
+            applyCadenaPayloadToForm(payload);
+            hideMissingWarning("#cadena-missing-warning");
+          } else {
+            applyPayloadToForm(payload);
+            hideMissingWarning("#missing-warning");
+          }
+          closeJsonModal();
+          showStatus("JSON aplicado al formulario.", "success");
+        } catch (error) {
+          showStatus(`JSON invalido: ${error.message}`, "error");
+        }
+      }
+
+      async function loadAdvancedJsonFile(event) {
+        const file = event.target.files[0];
+        event.target.value = "";
+        if (!file) return;
+        $("#advanced-json").value = await file.text();
+        applyJsonFromModal();
+      }
+
+      async function copyJsonFromModal() {
+        await navigator.clipboard.writeText($("#advanced-json").value);
+        showStatus("JSON copiado.", "success");
+      }
+
+      function downloadJsonFromModal() {
+        const blob = new Blob([$("#advanced-json").value], { type: "application/json" });
+        downloadBlob(blob, activeJsonKind === "cadena" ? "datos_cadena.json" : "datos_informe.json");
+      }
+
+      async function submitCadenaGeneration(event) {
+        event.preventDefault();
+        syncCadenaJsonFromFields();
+
+        const missing = missingTextFields(cadenaState);
+        showMissingWarning(missing, "#cadena-missing-warning", "La cadena de custodia");
+        generationResult.classList.add("hidden");
+        showStatus("Procesando cadena de custodia...", "info");
+        showLoading("Generando Word. Espera un momento...");
+
+        const form = event.currentTarget;
+        const formData = new FormData(form);
+        formData.set("json_text", JSON.stringify(cadenaState.payload));
+        formData.delete("images_zip");
+
+        if (cadenaState.mode === "custom" && cadenaState.customTemplateFile) {
+          formData.set("template_file", cadenaState.customTemplateFile, cadenaState.customTemplateFile.name);
+          formData.delete("template_id");
+        } else {
+          formData.delete("template_file");
+        }
+
+        try {
+          const response = await fetch("/api/generar/cadena", { method: "POST", body: formData });
+          redirectIfUnauthorized(response);
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: "No se pudo generar el documento." }));
+            throw new Error(error.detail || "No se pudo generar el documento.");
+          }
+
+          const blob = await response.blob();
+          const fileName = fileNameFromResponse(response) || "cadena.docx";
+          const result = {
+            status: response.headers.get("x-document-status") || (missing.txt.length ? "parcial" : "completo"),
+            hash: response.headers.get("x-document-hash") || "",
+            missing: missingFromHeader(response) || missing
+          };
+          showGenerationResult(blob, fileName, result);
+          loadHistory();
+        } catch (error) {
+          showStatus(error.message, "error");
+        } finally {
+          hideLoading();
+        }
+      }
+
+      async function submitInformeGeneration(event) {
+        event.preventDefault();
+        syncJsonFromFields();
+        syncJsonFromImageFields();
+
+        const missing = missingFields();
+        showMissingWarning(missing, "#missing-warning", "El informe");
+        generationResult.classList.add("hidden");
+        showStatus("Procesando informe...", "info");
+        showLoading("Generando Word. Espera un momento...");
+
+        const form = event.currentTarget;
+        const formData = new FormData(form);
+        const endpoint = informeState.mode === "custom" && informeState.customTemplateFile ? "/api/generar/custom" : "/api/generar/informe";
+        formData.set("json_text", JSON.stringify(informeState.payload));
+
+        if (endpoint === "/api/generar/custom") {
+          formData.set("template_file", informeState.customTemplateFile, informeState.customTemplateFile.name);
+          formData.delete("template_id");
+        } else {
+          formData.delete("template_file");
+        }
+
+        try {
+          const zipFile = await zipFileForSubmit();
+          if (zipFile) {
+            formData.set("images_zip", zipFile, zipFile.name);
+          } else {
+            formData.delete("images_zip");
+          }
+
+          const response = await fetch(endpoint, { method: "POST", body: formData });
+          redirectIfUnauthorized(response);
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: "No se pudo generar el documento." }));
+            throw new Error(error.detail || "No se pudo generar el documento.");
+          }
+
+          const blob = await response.blob();
+          const fileName = fileNameFromResponse(response) || "informe.docx";
+          const result = {
+            status: response.headers.get("x-document-status") || (missing.txt.length || missing.img.length ? "parcial" : "completo"),
+            hash: response.headers.get("x-document-hash") || "",
+            missing: missingFromHeader(response) || missing
+          };
+          showGenerationResult(blob, fileName, result);
+          loadHistory();
+        } catch (error) {
+          showStatus(error.message, "error");
+        } finally {
+          hideLoading();
+        }
+      }
+
+      function missingFields() {
+        const missing = missingTextFields(informeState);
+        informeState.placeholders.img.forEach((key) => {
+          if (!zipState.entries.length || !firstImageValue(informeState.payload[key])) {
+            missing.img.push(key);
+          }
+        });
+        return missing;
+      }
+
+      function missingTextFields(state) {
+        const missing = { txt: [], img: [] };
+        state.placeholders.txt.forEach((key) => {
+          if (isMissingTextValue(state.payload[key])) {
+            missing.txt.push(key);
+          }
+        });
+        return missing;
+      }
+
+      function isMissingTextValue(value) {
+        return value == null || !String(value).trim() || String(value).trim() === "[Pendiente]";
+      }
+
+      function showMissingWarning(missing, selector = "#missing-warning", subject = "El documento") {
+        const box = $(selector);
+        const parts = [];
+        if (missing.txt.length) parts.push(`<div><strong>Datos faltantes:</strong> ${missing.txt.map(escapeHtml).join(", ")}</div>`);
+        if (missing.img.length) parts.push(`<div class="mt-1"><strong>Fotografias faltantes:</strong> ${missing.img.map(escapeHtml).join(", ")}</div>`);
+
+        if (!parts.length) {
+          box.classList.add("hidden");
+          box.innerHTML = "";
+          return;
+        }
+
+        box.innerHTML = `<div class="font-medium">${escapeHtml(subject)} se puede generar como parcial.</div>${parts.join("")}`;
+        box.classList.remove("hidden");
+      }
+
+      function hideMissingWarning(selector = "#missing-warning") {
+        $(selector).classList.add("hidden");
+        $(selector).innerHTML = "";
+      }
+
+      async function submitGeneration(event, endpoint, textareaSelector) {
+        event.preventDefault();
+        showStatus("Procesando documento...", "info");
+        showLoading("Generando Word. Espera un momento...");
+
+        const form = event.currentTarget;
+        const formData = new FormData(form);
+        formData.set("json_text", $(textareaSelector).value);
+
+        try {
+          if (endpoint === "/api/generar/informe") {
+            const zipFile = await zipFileForSubmit();
+            if (zipFile) {
+              formData.set("images_zip", zipFile, zipFile.name);
+            }
+          }
+
+          const response = await fetch(endpoint, { method: "POST", body: formData });
+          redirectIfUnauthorized(response);
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: "No se pudo generar el documento." }));
+            throw new Error(error.detail || "No se pudo generar el documento.");
+          }
+
+          const blob = await response.blob();
+          const fileName = fileNameFromResponse(response) || "documento.docx";
+          downloadBlob(blob, fileName);
+          showStatus(`Documento generado: ${fileName}`, "success");
+          loadHistory();
+        } catch (error) {
+          showStatus(error.message, "error");
+        } finally {
+          hideLoading();
+        }
+      }
+
+      async function zipFileForSubmit() {
+        if (!zipState.entries.length) return null;
+        if (!hasZipChanges()) return zipState.originalFile;
+
+        showLoading("Preparando ZIP editado...");
+        const editedZip = new JSZip();
+
+        for (const entry of zipState.entries) {
+          const blob = entry.rotation ? await rotateImageBlob(entry.blob, entry.rotation) : entry.blob;
+          editedZip.file(entry.name, blob);
+        }
+
+        const zipBlob = await editedZip.generateAsync({ type: "blob", compression: "DEFLATE" });
+        return new File([zipBlob], "imagenes_editadas.zip", { type: "application/zip" });
+      }
+
+      function hasZipChanges() {
+        return zipState.entries.some((entry) => entry.replaced || entry.rotation !== 0);
+      }
+
+      function clearZipState() {
+        zipState.entries.forEach((entry) => URL.revokeObjectURL(entry.url));
+        zipState.originalFile = null;
+        zipState.entries = [];
+        zipState.selectedIndex = -1;
+        zipState.replacingIndex = -1;
+        $("#open-zip-editor").disabled = true;
+        closeZipEditor();
+      }
+
+      async function rotateImageBlob(blob, rotation) {
+        const image = await loadImage(blob);
+        const degrees = normalizeRotation(rotation);
+        if (!degrees) return blob;
+
+        const swap = degrees === 90 || degrees === 270;
+        const canvas = document.createElement("canvas");
+        canvas.width = swap ? image.naturalHeight : image.naturalWidth;
+        canvas.height = swap ? image.naturalWidth : image.naturalHeight;
+
+        const ctx = canvas.getContext("2d");
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((degrees * Math.PI) / 180);
+        ctx.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
+
+        return await new Promise((resolve, reject) => {
+          canvas.toBlob((result) => {
+            if (result) resolve(result);
+            else reject(new Error("No pude girar una imagen del ZIP."));
+          }, "image/jpeg", 0.9);
+        });
+      }
+
+      function loadImage(blob) {
+        return new Promise((resolve, reject) => {
+          const url = URL.createObjectURL(blob);
+          const image = new Image();
+          image.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve(image);
+          };
+          image.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error("No pude leer una imagen del ZIP."));
+          };
+          image.src = url;
+        });
+      }
+
+      function zipSummary() {
+        const changed = zipState.entries.filter((entry) => entry.replaced || entry.rotation !== 0).length;
+        return changed ? `${changed} imagenes modificadas` : "Sin cambios pendientes";
+      }
+
+      function normalizeRotation(value) {
+        return ((value % 360) + 360) % 360;
+      }
+
+      function extensionOf(name) {
+        return name.split(".").pop().toLowerCase();
+      }
+
+      function fileNameOnly(name) {
+        return name.replace(/\\/g, "/").split("/").pop();
+      }
+
+      function naturalCompare(a, b) {
+        return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+      }
+
+      function showLoading(message) {
+        loadingMessage.textContent = message;
+        loadingModal.classList.remove("hidden");
+        loadingModal.classList.add("flex");
+      }
+
+      function hideLoading() {
+        loadingModal.classList.add("hidden");
+        loadingModal.classList.remove("flex");
+      }
+
+      function fileNameFromResponse(response) {
+        const header = response.headers.get("content-disposition") || "";
+        const encodedMatch = header.match(/filename\*=utf-8''([^;]+)/i);
+        if (encodedMatch) return decodeURIComponent(encodedMatch[1]);
+        const match = header.match(/filename="?([^"]+)"?/i);
+        return match ? decodeURIComponent(match[1]) : "";
+      }
+
+      function downloadBlob(blob, fileName) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function showGenerationResult(blob, fileName, result) {
+        if (currentResultUrl) URL.revokeObjectURL(currentResultUrl);
+        currentResultUrl = URL.createObjectURL(blob);
+        const missingParts = [];
+        if (result.missing.txt && result.missing.txt.length) {
+          missingParts.push(`<div><strong>Datos faltantes:</strong> ${result.missing.txt.map(escapeHtml).join(", ")}</div>`);
+        }
+        if (result.missing.img && result.missing.img.length) {
+          missingParts.push(`<div><strong>Fotografias faltantes:</strong> ${result.missing.img.map(escapeHtml).join(", ")}</div>`);
+        }
+
+        generationResult.innerHTML = `
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div><strong>Estado:</strong> ${escapeHtml(result.status || "")}</div>
+              <div class="mt-1"><strong>Hash:</strong> ${escapeHtml(result.hash || "")}</div>
+              ${missingParts.length ? `<div class="mt-2">${missingParts.join("")}</div>` : `<div class="mt-2">Sin faltantes detectados.</div>`}
+            </div>
+            <a class="inline-flex items-center justify-center rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" href="${currentResultUrl}" download="${escapeHtml(fileName)}">
+              Descargar Word
+            </a>
+          </div>
+        `;
+        generationResult.classList.remove("hidden");
+        showStatus(`Documento generado: ${fileName}`, "success");
+      }
+
+      function missingFromHeader(response) {
+        const header = response.headers.get("x-missing-fields");
+        if (!header) return null;
+        try {
+          return JSON.parse(decodeURIComponent(header));
+        } catch {
+          return null;
+        }
+      }
+
+      async function loadHistory() {
+        const body = $("#history-body");
+        body.innerHTML = `<tr><td class="py-4 pr-4 text-zinc-500" colspan="6">Cargando...</td></tr>`;
+
+        try {
+          const response = await fetch("/api/historial");
+          redirectIfUnauthorized(response);
+          const items = await response.json();
+
+          if (!items.length) {
+            body.innerHTML = `<tr><td class="py-4 pr-4 text-zinc-500" colspan="6">Sin documentos generados</td></tr>`;
+            return;
+          }
+
+          body.innerHTML = items.map((item) => `
+            <tr>
+              <td class="py-3 pr-4 text-zinc-700">${formatDate(item.created_at)}</td>
+              <td class="py-3 pr-4 capitalize">${item.kind}</td>
+              <td class="py-3 pr-4 text-zinc-700">
+                <div>${escapeHtml(item.summary || "")}</div>
+                <div class="mt-1 text-xs text-zinc-500">${escapeHtml(item.template || "")}</div>
+                <div class="mt-1 text-xs text-zinc-500">${escapeHtml(historyStatus(item))}</div>
+              </td>
+              <td class="py-3 pr-4">${item.size_mb || 0} MB</td>
+              <td class="py-3 pr-4">${item.image_count || 0}</td>
+              <td class="py-3 pr-4">
+                <div class="flex flex-wrap gap-2">
+                  <a class="rounded-md bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800" href="${item.document_url}">Word</a>
+                  <a class="rounded-md border border-zinc-300 px-3 py-2 text-xs font-semibold hover:bg-zinc-50" href="${item.json_url}">JSON</a>
+                </div>
+              </td>
+            </tr>
+          `).join("");
+        } catch (error) {
+          body.innerHTML = `<tr><td class="py-4 pr-4 text-red-700" colspan="6">${escapeHtml(error.message)}</td></tr>`;
+        }
+      }
+
+      function showStatus(message, type) {
+        statusBox.className = "mt-4 rounded-md border px-4 py-3 text-sm";
+        const classes = {
+          info: "border-sky-200 bg-sky-50 text-sky-900",
+          success: "border-teal-200 bg-teal-50 text-teal-900",
+          error: "border-red-200 bg-red-50 text-red-900"
+        };
+        statusBox.className += ` ${classes[type] || classes.info}`;
+        statusBox.textContent = message;
+        statusBox.classList.remove("hidden");
+      }
+
+      function redirectIfUnauthorized(response) {
+        if (response.status === 401) {
+          window.location.href = "/login";
+          throw new Error("Sesion expirada.");
+        }
+      }
+
+      function formatDate(value) {
+        if (!value) return "";
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+      }
+
+      function historyStatus(item) {
+        if (!item.status && !item.hash) return "";
+        return `${item.status || ""}${item.hash ? ` | ${item.hash}` : ""}`;
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, (char) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#039;"
+        })[char]);
+      }
+    </script>
+  </body>
+</html>
