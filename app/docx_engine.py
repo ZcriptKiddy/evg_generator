@@ -14,7 +14,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 
 MAX_DOCX_BYTES = 7 * 1024 * 1024
-IMAGE_WIDTH_CM = 5.3
+IMAGE_HEIGHT_CM = 5.3
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
 PLACEHOLDER_RE = re.compile(r"{{\s*([\w]+)\s*}}", re.UNICODE)
 
@@ -421,4 +421,4 @@ def _add_images(paragraph: Any, paths: list[Path]) -> None:
         if index:
             paragraph.add_run(" ")
         run = paragraph.add_run()
-        run.add_picture(str(path), width=Cm(IMAGE_WIDTH_CM))
+        run.add_picture(str(path), height=Cm(IMAGE_HEIGHT_CM))
