@@ -6,56 +6,572 @@
     <title>Generador DOCX</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+      .wizard-note {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        border: 1px solid rgb(167 243 208);
+        border-radius: 0.5rem;
+        background: linear-gradient(135deg, rgb(236 253 245), white);
+        padding: 0.9rem 1rem;
+        color: rgb(6 95 70);
+        font-size: 0.95rem;
+      }
+      .wizard-steps {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+        margin: 1.6rem 0;
+      }
+      .wizard-step {
+        position: relative;
+        display: grid;
+        width: 100%;
+        gap: 0.45rem;
+        justify-items: center;
+        text-align: center;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        padding: 0;
+        cursor: pointer;
+      }
+      .wizard-step:hover .wizard-dot,
+      .wizard-step:focus-visible .wizard-dot {
+        box-shadow: 0 0 0 4px rgb(20 184 166 / 0.18);
+      }
+      .wizard-step:focus-visible {
+        outline: 2px solid rgb(13 148 136);
+        outline-offset: 4px;
+        border-radius: 0.5rem;
+      }
+      .wizard-step:not(:last-child)::after {
+        content: "";
+        position: absolute;
+        left: calc(50% + 1.6rem);
+        right: calc(-50% + 1.6rem);
+        top: 1.05rem;
+        height: 2px;
+        background: rgb(226 232 240);
+      }
+      .wizard-step.is-done:not(:last-child)::after,
+      .wizard-step.is-current:not(:last-child)::after {
+        background: rgb(22 163 74);
+      }
+      .wizard-dot {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        width: 2.25rem;
+        height: 2.25rem;
+        place-items: center;
+        border-radius: 999px;
+        background: rgb(241 245 249);
+        color: rgb(15 23 42);
+        font-weight: 800;
+      }
+      .wizard-step.is-current .wizard-dot,
+      .wizard-step.is-done .wizard-dot {
+        background: linear-gradient(135deg, rgb(5 150 105), rgb(22 163 74));
+        color: white;
+      }
+      .wizard-step strong {
+        font-size: 0.9rem;
+      }
+      .wizard-step span:last-child {
+        color: rgb(71 85 105);
+        font-size: 0.8rem;
+      }
+      .step-card {
+        border: 1px solid rgb(226 232 240);
+        border-radius: 0.5rem;
+        background: white;
+        padding: 1.25rem;
+        box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+      }
+      .step-card:not(.is-current) {
+        display: none;
+      }
+      .step-card.is-current {
+        border-color: rgb(20 184 166);
+        box-shadow: 0 12px 32px rgb(15 23 42 / 0.08);
+      }
+      .muted-step {
+        background: rgb(248 250 252);
+      }
+      .step-head {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+        margin-bottom: 0.9rem;
+      }
+      .step-icon {
+        display: grid;
+        width: 2.25rem;
+        height: 2.25rem;
+        flex: none;
+        place-items: center;
+        border-radius: 0.5rem;
+        background: rgb(15 118 110);
+        color: white;
+        font-weight: 800;
+      }
+      .step-head h3 {
+        font-size: 1rem;
+        font-weight: 700;
+      }
+      .step-head p {
+        margin-top: 0.15rem;
+        color: rgb(71 85 105);
+        font-size: 0.9rem;
+        line-height: 1.45;
+      }
+      .step-actions {
+        display: grid;
+        gap: 1rem;
+      }
+      .secondary-action,
+      .primary-action,
+      .continue-action,
+      .back-action,
+      .download-action {
+        display: inline-flex;
+        min-height: 2.85rem;
+        width: 100%;
+        cursor: pointer;
+        align-items: center;
+        justify-content: center;
+        gap: 0.55rem;
+        border-radius: 0.5rem;
+        padding: 0.65rem 0.9rem;
+        font-size: 0.9rem;
+        font-weight: 700;
+      }
+      .secondary-action {
+        border: 1px solid rgb(203 213 225);
+        background: white;
+        color: rgb(15 23 42);
+      }
+      .step-actions .secondary-action {
+        min-height: 6.1rem;
+        flex-direction: column;
+      }
+      .step-actions .secondary-action svg,
+      .quick-actions svg,
+      .wizard-note svg,
+      .nav-row svg {
+        width: 1.35rem;
+        height: 1.35rem;
+      }
+      .accent-action {
+        border-color: rgb(20 184 166);
+        background: rgb(240 253 250);
+        color: rgb(19 78 74);
+      }
+      .warm-action {
+        border-color: rgb(245 158 11);
+        background: rgb(255 251 235);
+        color: rgb(120 53 15);
+      }
+      .primary-action {
+        border: 1px solid rgb(15 118 110);
+        background: rgb(15 118 110);
+        color: white;
+      }
+      .download-action {
+        border: 1px solid rgb(126 34 206);
+        background: linear-gradient(135deg, rgb(126 34 206), rgb(190 24 93));
+        color: white;
+        box-shadow: 0 8px 18px rgb(126 34 206 / 0.18);
+      }
+      .download-action:hover {
+        background: linear-gradient(135deg, rgb(107 33 168), rgb(159 18 57));
+      }
+      .continue-action {
+        margin-top: 0;
+        border: 1px solid transparent;
+        background: rgb(5 150 105);
+        color: white;
+      }
+      .back-action {
+        border: 1px solid rgb(203 213 225);
+        background: white;
+        color: rgb(15 23 42);
+      }
+      .nav-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 1.2rem;
+      }
+      .metric-card {
+        border: 1px solid rgb(226 232 240);
+        border-radius: 0.5rem;
+        background: rgb(248 250 252);
+        padding: 0.85rem;
+      }
+      .metric-card p {
+        color: rgb(100 116 139);
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .metric-card strong {
+        display: block;
+        margin-top: 0.25rem;
+        color: rgb(30 41 59);
+        font-size: 0.95rem;
+      }
+      .summary-panel {
+        border: 1px solid rgb(226 232 240);
+        border-radius: 0.5rem;
+        background: linear-gradient(135deg, white, rgb(248 250 252));
+        padding: 1.1rem;
+        box-shadow: 0 8px 24px rgb(15 23 42 / 0.06);
+      }
+      .summary-panel h3 {
+        font-size: 0.85rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgb(71 85 105);
+      }
+      .summary-grid {
+        display: grid;
+        gap: 0.75rem;
+        margin-top: 0.9rem;
+      }
+      .summary-item {
+        display: grid;
+        grid-template-columns: 2.4rem minmax(0, 1fr) auto;
+        gap: 0.75rem;
+        width: 100%;
+        align-items: center;
+        border: 1px solid rgb(226 232 240);
+        overflow-wrap: anywhere;
+        border-radius: 0.5rem;
+        background: white;
+        padding: 0.8rem;
+        text-align: left;
+        transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+      }
+      .summary-item:hover {
+        border-color: rgb(20 184 166);
+        box-shadow: 0 6px 16px rgb(15 23 42 / 0.08);
+        transform: translateY(-1px);
+      }
+      .summary-item:disabled {
+        cursor: default;
+      }
+      .summary-item:disabled:hover {
+        border-color: rgb(226 232 240);
+        box-shadow: none;
+        transform: none;
+      }
+      .summary-item-icon {
+        display: grid;
+        width: 2.4rem;
+        height: 2.4rem;
+        place-items: center;
+        border-radius: 0.5rem;
+        background: rgb(240 253 250);
+        color: rgb(15 118 110);
+      }
+      .summary-item-icon svg {
+        width: 1.2rem;
+        height: 1.2rem;
+      }
+      .summary-item span {
+        display: block;
+        color: rgb(71 85 105);
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+      .summary-item code {
+        display: block;
+        margin-top: 0.2rem;
+        color: rgb(30 41 59);
+        font-size: 0.85rem;
+      }
+      .summary-item > svg {
+        width: 1rem;
+        color: rgb(100 116 139);
+      }
+      .image-inspector-thumb {
+        display: grid;
+        grid-template-columns: 4.5rem minmax(0, 1fr);
+        gap: 0.65rem;
+        width: 100%;
+        align-items: center;
+        border: 1px solid rgb(226 232 240);
+        border-radius: 0.5rem;
+        background: white;
+        padding: 0.55rem;
+        text-align: left;
+      }
+      .image-inspector-thumb.is-selected {
+        border-color: rgb(13 148 136);
+        background: rgb(240 253 250);
+        box-shadow: 0 0 0 2px rgb(153 246 228 / 0.6);
+      }
+      .image-inspector-thumb img {
+        width: 4.5rem;
+        height: 3.5rem;
+        border-radius: 0.35rem;
+        object-fit: cover;
+      }
+      #assignment-image-list {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.35rem;
+      }
+      .assignment-thumb {
+        position: relative;
+        display: block;
+        min-width: 0;
+        border: 1px solid rgb(226 232 240);
+        border-radius: 0.4rem;
+        background: white;
+        padding: 0.25rem;
+        cursor: grab;
+      }
+      .assignment-thumb:active { cursor: grabbing; }
+      .assignment-thumb img {
+        display: block;
+        width: 100%;
+        height: 3.25rem;
+        border-radius: 0.3rem;
+        object-fit: cover;
+      }
+      .assignment-thumb-name {
+        display: block;
+        overflow: hidden;
+        margin-top: 0.2rem;
+        font-size: 0.58rem;
+        font-weight: 700;
+        line-height: 0.75rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .assignment-zoom {
+        position: absolute;
+        top: 0.4rem;
+        right: 0.4rem;
+        display: grid;
+        width: 1.65rem;
+        height: 1.65rem;
+        place-items: center;
+        border: 1px solid rgb(255 255 255 / 0.8);
+        border-radius: 9999px;
+        background: rgb(15 23 42 / 0.86);
+        color: white;
+      }
+      .assignment-zoom svg { width: 0.9rem; height: 0.9rem; }
+      #zip-image-list {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-auto-rows: 5.75rem;
+        gap: 0.4rem;
+        min-height: 0;
+        height: 100%;
+        align-content: start;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-gutter: stable;
+      }
+      .zip-compact-thumb {
+        position: relative;
+        min-width: 0;
+        height: 5.75rem;
+        overflow: hidden;
+        border: 1px solid rgb(226 232 240);
+        border-radius: 0.45rem;
+        background: white;
+      }
+      .zip-compact-thumb.is-selected {
+        border-color: rgb(13 148 136);
+        box-shadow: 0 0 0 2px rgb(153 246 228 / 0.7);
+      }
+      .zip-select-image { display: block; width: 100%; padding: 0.2rem; }
+      .zip-select-image img {
+        display: block;
+        width: 100%;
+        height: 4.4rem;
+        min-height: 4.4rem;
+        max-height: 4.4rem;
+        border-radius: 0.3rem;
+        object-fit: cover;
+      }
+      .zip-selected-action {
+        display: grid;
+        min-height: 2.4rem;
+        place-items: center;
+        border: 1px solid rgb(203 213 225);
+        border-radius: 0.4rem;
+        background: white;
+      }
+      .zip-selected-action:hover { background: rgb(241 245 249); }
+      .zip-selected-action svg { width: 1rem; height: 1rem; }
+      #ocr-region-layer { touch-action: none; }
+      #ocr-region-layer.is-active { cursor: crosshair; }
+      #ocr-region-box {
+        position: absolute;
+        border: 2px solid rgb(13 148 136);
+        background: rgb(20 184 166 / 0.16);
+        box-shadow: 0 0 0 9999px rgb(9 9 11 / 0.34);
+        pointer-events: none;
+      }
+      .zip-compact-name {
+        display: block;
+        overflow: hidden;
+        padding: 0.1rem 0.3rem 0.3rem;
+        font-size: 0.58rem;
+        font-weight: 700;
+        line-height: 0.75rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      @media (min-width: 1024px) {
+        #assignment-image-list { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      }
+      button:disabled,
+      label.is-disabled {
+        cursor: not-allowed;
+        opacity: 0.48;
+      }
+      .zip-thumb img {
+        height: 7rem;
+        width: 100%;
+        object-fit: cover;
+      }
+      @media (min-width: 640px) {
+        .step-actions {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+        .nav-row {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .nav-row .continue-action,
+        .nav-row .back-action,
+        .nav-row .primary-action,
+        .nav-row .download-action {
+          width: fit-content;
+          min-width: 10rem;
+        }
+        .summary-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (min-width: 1024px) {
+        .summary-grid {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+      }
+      @media (max-width: 640px) {
+        .wizard-steps {
+          grid-template-columns: 1fr;
+          gap: 0.75rem;
+        }
+        .wizard-step {
+          grid-template-columns: 2.25rem 1fr;
+          justify-items: start;
+          text-align: left;
+        }
+        .wizard-step:not(:last-child)::after {
+          display: none;
+        }
+        .zip-thumb img {
+          height: 10rem;
+        }
+      }
+    </style>
   </head>
-  <body class="min-h-screen bg-zinc-50 text-zinc-950">
-    <main class="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-      <header class="flex flex-col gap-4 border-b border-zinc-200 pb-4 md:flex-row md:items-end md:justify-between">
+  <body class="min-h-screen bg-slate-100 text-slate-950">
+    <main class="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
+      <header class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:flex md:items-end md:justify-between">
         <div>
-          <h1 class="text-2xl font-semibold tracking-normal">Generador DOCX</h1>
-          <p class="mt-1 text-sm text-zinc-600">Informe pericial y cadena de custodia</p>
+          <p class="text-xs font-bold uppercase tracking-wide text-teal-700">Flujo guiado</p>
+          <h1 class="mt-1 text-2xl font-semibold tracking-normal">Generador DOCX</h1>
+          <p class="mt-1 text-sm text-slate-600">Cadena de custodia e informe pericial en pasos claros.</p>
         </div>
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <nav class="grid grid-cols-3 gap-2 rounded-lg bg-zinc-200 p-1 text-sm font-medium text-zinc-700">
-            <button data-tab="cadena" class="tab-btn rounded-md bg-white px-3 py-2 shadow-sm">Cadena de Custodia</button>
-            <button data-tab="informe" class="tab-btn rounded-md px-3 py-2">Informe Pericial</button>
+        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center md:mt-0">
+          <nav class="grid grid-cols-4 gap-1 rounded-lg bg-slate-200 p-1 text-sm font-semibold text-slate-700">
+            <button data-tab="rutas" class="tab-btn rounded-md bg-white px-3 py-2 shadow-sm">Rutas</button>
+            <button data-tab="cadena" class="tab-btn rounded-md px-3 py-2">Cadena</button>
+            <button data-tab="informe" class="tab-btn rounded-md px-3 py-2">Informe</button>
             <button data-tab="historial" class="tab-btn rounded-md px-3 py-2">Historial</button>
           </nav>
           <form method="post" action="/logout">
-            <button class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="submit">
+            <button class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50 sm:w-auto" type="submit">
               Cerrar sesión
             </button>
           </form>
         </div>
       </header>
 
-      <section id="status" class="mt-4 hidden rounded-md border px-4 py-3 text-sm"></section>
-      <section id="generation-result" class="mt-4 hidden rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-950"></section>
+      <section id="tab-cadena" class="tab-panel hidden flex-1 space-y-5 py-5">
+        <form id="cadena-form" class="space-y-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wide text-teal-700">Plantilla_Cadena.docx</p>
+              <h2 class="text-xl font-semibold">Cadena de Custodia</h2>
+              <p class="mt-1 text-sm text-slate-600">Solo campos Txt; las imágenes se muestran como no aplicables.</p>
+            </div>
+          </div>
+          <div class="wizard-note"><i data-lucide="sparkles"></i><span>Sigue estos pasos para generar la cadena de forma rápida y sencilla.</span></div>
+          <div class="wizard-steps" data-wizard="cadena">
+            <button class="wizard-step is-current" data-wizard-step="cadena-1" type="button" aria-current="step"><span class="wizard-dot">1</span><strong>Seleccionar plantilla</strong><span>Usa la predeterminada</span></button>
+            <button class="wizard-step" data-wizard-step="cadena-2" type="button"><span class="wizard-dot">2</span><strong>Detectar campos</strong><span>Revisa textos</span></button>
+            <button class="wizard-step" data-wizard-step="cadena-3" type="button"><span class="wizard-dot">3</span><strong>Solo texto</strong><span>Sin imágenes</span></button>
+            <button class="wizard-step" data-wizard-step="cadena-4" type="button"><span class="wizard-dot">4</span><strong>Generar Word</strong><span>Descarga tu documento</span></button>
+          </div>
 
-      <section id="tab-cadena" class="tab-panel grid flex-1 gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <form id="cadena-form" class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-          <div class="grid gap-3 xl:grid-cols-[1fr_auto] xl:items-start">
-            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <button id="use-default-cadena-template" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
-                Usar plantilla actual
-              </button>
-              <label class="inline-flex cursor-pointer items-center justify-center rounded-md border border-teal-400 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-900 hover:bg-teal-100">
-                Subir otra plantilla
+          <section class="step-card is-current" data-step-card="cadena-1">
+            <div class="step-head"><span class="step-icon">1</span><div><h3>Paso 1: Seleccionar plantilla</h3><p>Carga una plantilla DOCX propia para sustituir la actual.</p></div></div>
+            <div class="step-actions">
+              <label class="secondary-action accent-action">
+                <i data-lucide="replace"></i>
+                Cambiar plantilla
                 <input id="cadena-template-file" name="template_file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" />
               </label>
-              <button id="open-cadena-fields-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
-                Ver campos detectados
-              </button>
-              <button id="open-cadena-json-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
-                JSON / Datos avanzados
-              </button>
             </div>
-            <button class="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="submit">
-              Generar Word
-            </button>
-          </div>
-          <div class="mt-3 grid gap-2 text-sm text-zinc-600 sm:grid-cols-2">
+            <div class="nav-row"><span></span><button class="continue-action" data-continue-to="cadena-2" type="button">Continuar <i data-lucide="arrow-right"></i></button></div>
+          </section>
+
+          <section class="step-card" data-step-card="cadena-2">
+            <div class="step-head"><span class="step-icon">2</span><div><h3>Paso 2: Detectar campos</h3><p>Revisa los campos Txt encontrados en la plantilla.</p></div></div>
+            <div class="step-actions">
+              <button id="open-cadena-fields-modal" class="secondary-action accent-action" type="button"><i data-lucide="list-checks"></i>Ver campos detectados</button>
+            </div>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <div class="metric-card"><p>Campos detectados</p><strong id="cadena-field-count">Sin analizar</strong></div>
+              <div class="metric-card"><p>imágenes</p><strong id="cadena-image-count">No se usan en Cadena</strong></div>
+            </div>
+            <div class="nav-row"><button class="back-action" data-back-to="cadena-1" type="button"><i data-lucide="arrow-left"></i> Regresar</button><button class="continue-action" data-continue-to="cadena-3" type="button">Continuar <i data-lucide="arrow-right"></i></button></div>
+          </section>
+
+          <section class="step-card muted-step" data-step-card="cadena-3">
+            <div class="step-head"><span class="step-icon">3</span><div><h3>Paso 3: Subir ZIP y/o imágenes</h3><p>Cadena no requiere imágenes. Este paso queda marcado como solo texto.</p></div></div>
+            <p id="cadena-img-note" class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">Solo campos de texto</p>
+            <div class="nav-row"><button class="back-action" data-back-to="cadena-2" type="button"><i data-lucide="arrow-left"></i> Regresar</button><button class="continue-action" data-continue-to="cadena-4" type="button">Continuar <i data-lucide="arrow-right"></i></button></div>
+          </section>
+
+          <section class="step-card" data-step-card="cadena-4">
+            <div class="step-head"><span class="step-icon">4</span><div><h3>Paso 4: Generar Word</h3><p>Genera el documento o ajusta el JSON antes de crear el archivo.</p></div></div>
+            <div class="step-actions">
+              <button id="open-cadena-json-modal" class="secondary-action" type="button"><i data-lucide="braces"></i>JSON / Datos avanzados</button>
+              <button class="secondary-action accent-action" type="submit"><i data-lucide="file-text"></i>Generar Word</button>
+            </div>
+            <div class="nav-row"><button class="back-action" data-back-to="cadena-3" type="button"><i data-lucide="arrow-left"></i> Regresar</button><div class="flex flex-1 flex-col gap-2 sm:flex-row sm:justify-end"><button class="primary-action" type="submit">Generar Word <i data-lucide="file-down"></i></button><a id="download-cadena" class="download-action hidden" href="#">Descargar Word <i data-lucide="download"></i></a></div></div>
+          </section>
+
+          <div class="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
             <p id="cadena-template-name">Plantilla: templates/Plantilla_Cadena.docx</p>
-            <p id="cadena-img-note">Solo campos de texto</p>
           </div>
           <select
             id="cadena-template"
@@ -71,59 +587,74 @@
             class="hidden"
           ></textarea>
           <section id="cadena-missing-warning" class="mt-4 hidden rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"></section>
-          <div class="mt-4 grid gap-3 sm:grid-cols-2">
-            <div class="rounded-md border border-zinc-200 bg-zinc-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Campos detectados</p>
-              <p id="cadena-field-count" class="mt-1 text-sm text-zinc-700">Sin analizar</p>
-            </div>
-            <div class="rounded-md border border-zinc-200 bg-zinc-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Imagenes</p>
-              <p id="cadena-image-count" class="mt-1 text-sm text-zinc-700">No se usan en Cadena</p>
-            </div>
-          </div>
         </form>
-        <aside class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-          <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-500">Plantilla</h3>
-          <p class="mt-3 text-sm text-zinc-700">Archivo seleccionado:</p>
-          <code id="cadena-template-current" class="mt-2 block rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-800">templates/Plantilla_Cadena.docx</code>
-          <p class="mt-4 text-sm text-zinc-700">Campos:</p>
-          <code id="cadena-placeholder-summary" class="mt-2 block rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-800">Analizando plantilla...</code>
+        <aside class="summary-panel">
+          <h3>Resumen de Cadena de Custodia</h3>
+          <div class="summary-grid">
+            <button class="summary-item" data-summary-step="cadena-1" type="button" disabled><span class="summary-item-icon"><i data-lucide="file-check-2"></i></span><span>Plantilla<code id="cadena-template-current">templates/Plantilla_Cadena.docx</code></span><i data-lucide="chevron-right"></i></button>
+            <button class="summary-item" data-summary-step="cadena-2" type="button" disabled><span class="summary-item-icon"><i data-lucide="list-checks"></i></span><span>Campos detectados<code id="cadena-placeholder-summary">Analizando plantilla...</code></span><i data-lucide="chevron-right"></i></button>
+            <button class="summary-item" data-summary-step="cadena-3" type="button" disabled><span class="summary-item-icon"><i data-lucide="image-off"></i></span><span>Imágenes<code>Solo campos de texto</code></span><i data-lucide="chevron-right"></i></button>
+            <button class="summary-item" data-summary-step="cadena-4" type="button" disabled><span class="summary-item-icon"><i data-lucide="route"></i></span><span>Estado actual<code id="cadena-flow-status">Paso 1 de 4</code></span><i data-lucide="chevron-right"></i></button>
+          </div>
           <p id="cadena-img-warning" class="mt-4 hidden rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"></p>
         </aside>
       </section>
 
-      <section id="tab-informe" class="tab-panel hidden grid flex-1 gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <form id="informe-form" class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-          <div class="grid gap-3 xl:grid-cols-[1fr_auto] xl:items-start">
-            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              <button id="use-default-template" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
-                Usar plantilla actual
-              </button>
-              <label class="inline-flex cursor-pointer items-center justify-center rounded-md border border-teal-400 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-900 hover:bg-teal-100">
-                Subir otra plantilla
-                <input id="informe-template-file" name="template_file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" />
-              </label>
-              <label class="inline-flex cursor-pointer items-center justify-center rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">
-                Subir ZIP
-                <input id="zip-file" name="images_zip" type="file" accept=".zip,application/zip" class="hidden" />
-              </label>
-              <button id="open-fields-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
-                Ver campos detectados
-              </button>
-              <button id="open-zip-editor" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled>
-                Ver imagenes detectadas
-              </button>
-              <button id="open-json-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
-                JSON / Datos avanzados
-              </button>
+      <section id="tab-informe" class="tab-panel hidden flex-1 space-y-5 py-5">
+        <form id="informe-form" class="space-y-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wide text-cyan-700">Plantilla_Informe.docx</p>
+              <h2 class="text-xl font-semibold">Informe Pericial</h2>
+              <p class="mt-1 text-sm text-slate-600">Campos Txt e Img separados para revisar sin confusiones.</p>
             </div>
-            <button class="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="submit">
-              Generar Word
-            </button>
           </div>
-          <div class="mt-3 grid gap-2 text-sm text-zinc-600 sm:grid-cols-2">
+          <div class="wizard-note"><i data-lucide="sparkles"></i><span>Sigue estos pasos para generar tu informe de forma rápida y sencilla.</span></div>
+          <div class="wizard-steps" data-wizard="informe">
+            <button class="wizard-step is-current" data-wizard-step="informe-1" type="button" aria-current="step"><span class="wizard-dot">1</span><strong>Preparar informe</strong><span>Plantilla predeterminada</span></button>
+            <button class="wizard-step" data-wizard-step="informe-2" type="button"><span class="wizard-dot">2</span><strong>Imágenes y archivos</strong><span>ZIP o imágenes</span></button>
+            <button class="wizard-step" data-wizard-step="informe-3" type="button"><span class="wizard-dot">3</span><strong>Detectar campos</strong><span>Txt e Img</span></button>
+            <button class="wizard-step" data-wizard-step="informe-4" type="button"><span class="wizard-dot">4</span><strong>Generar informe</strong><span>Descarga tu documento</span></button>
+          </div>
+
+          <section class="step-card is-current" data-step-card="informe-1">
+            <div class="step-head"><span class="step-icon">1</span><div><h3>Paso 1: Preparar informe</h3><p>Usa la plantilla actual o carga una plantilla DOCX personalizada.</p></div></div>
+            <div class="step-actions">
+              <label id="change-template-label" class="secondary-action accent-action"><i data-lucide="replace"></i>Cambiar plantilla<input id="informe-template-file" name="template_file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" /></label>
+            </div>
+            <div class="nav-row"><span></span><button class="continue-action" data-continue-to="informe-2" type="button">Continuar <i data-lucide="arrow-right"></i></button></div>
+          </section>
+
+          <section class="step-card" data-step-card="informe-2">
+            <div class="step-head"><span class="step-icon">2</span><div><h3>Paso 2: Imágenes y archivos</h3><p>Carga imágenes sueltas o un ZIP y revísalas antes de continuar.</p></div></div>
+            <div class="step-actions">
+              <label class="secondary-action warm-action"><i data-lucide="folder-up"></i>Subir ZIP y/o imágenes<input id="zip-file" name="images_zip" type="file" accept=".zip,application/zip,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff,image/jpeg,image/png,image/webp,image/bmp,image/tiff" multiple class="hidden" /></label>
+              <button id="open-zip-editor" class="secondary-action disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled><i data-lucide="scan-search"></i>Inspeccionar imágenes detectadas</button>
+              <button id="open-image-assignment" class="secondary-action accent-action disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled><i data-lucide="image-plus"></i>Asignación de imágenes</button>
+            </div>
+            <p id="zip-name" class="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">ZIP y/o imágenes pendiente</p>
+            <div class="nav-row"><button class="back-action" data-back-to="informe-1" type="button"><i data-lucide="arrow-left"></i> Regresar</button><button class="continue-action" data-continue-to="informe-3" type="button">Continuar <i data-lucide="arrow-right"></i></button></div>
+          </section>
+
+          <section class="step-card" data-step-card="informe-3">
+            <div class="step-head"><span class="step-icon">3</span><div><h3>Paso 3: Detectar campos</h3><p>Revisa los campos de texto y las fotografías de la plantilla.</p></div></div>
+            <div class="step-actions">
+              <button id="open-fields-modal" class="secondary-action accent-action" type="button"><i data-lucide="list-checks"></i>Ver campos detectados</button>
+            </div>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2"><div class="metric-card"><p>Campos Txt</p><strong id="field-count">Sin analizar</strong></div><div class="metric-card"><p>Campos Img</p><strong id="image-count">Sin analizar</strong></div></div>
+            <div class="nav-row"><button class="back-action" data-back-to="informe-2" type="button"><i data-lucide="arrow-left"></i> Regresar</button><button class="continue-action" data-continue-to="informe-4" type="button">Continuar <i data-lucide="arrow-right"></i></button></div>
+          </section>
+
+          <section class="step-card" data-step-card="informe-4">
+            <div class="step-head"><span class="step-icon">4</span><div><h3>Paso 4: Generar Word</h3><p>Genera el informe o ajusta los datos avanzados.</p></div></div>
+            <div class="step-actions">
+              <button id="open-json-modal" class="secondary-action" type="button"><i data-lucide="braces"></i>Ver JSON</button>
+            </div>
+            <div class="nav-row"><button class="back-action" data-back-to="informe-3" type="button"><i data-lucide="arrow-left"></i> Regresar</button><div class="flex flex-1 flex-col gap-2 sm:flex-row sm:justify-end"><button id="generate-informe" class="primary-action" type="submit">Generar Word <i data-lucide="file-down"></i></button><a id="download-informe" class="download-action hidden" href="#">Descargar Word <i data-lucide="download"></i></a></div></div>
+          </section>
+
+          <div class="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
             <p id="informe-template-name">Plantilla: templates/Plantilla_Informe.docx</p>
-            <p id="zip-name">ZIP pendiente</p>
           </div>
           <select
             id="informe-template"
@@ -139,46 +670,90 @@
             class="hidden"
           ></textarea>
           <section id="missing-warning" class="mt-4 hidden rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"></section>
-          <div class="mt-4 grid gap-3 sm:grid-cols-2">
-            <div class="rounded-md border border-zinc-200 bg-zinc-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Campos detectados</p>
-              <p id="field-count" class="mt-1 text-sm text-zinc-700">Sin analizar</p>
-            </div>
-            <div class="rounded-md border border-zinc-200 bg-zinc-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Fotografias detectadas</p>
-              <p id="image-count" class="mt-1 text-sm text-zinc-700">Sin analizar</p>
-            </div>
-          </div>
         </form>
-        <aside class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-          <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-500">Plantilla</h3>
-          <p class="mt-3 text-sm text-zinc-700">Archivo seleccionado:</p>
-          <code id="informe-template-current" class="mt-2 block rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-800">templates/Plantilla_Informe.docx</code>
-          <p class="mt-4 text-sm text-zinc-700">Campos:</p>
-          <code id="informe-placeholder-summary" class="mt-2 block rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-800">Analizando plantilla...</code>
-          <p class="mt-4 text-sm text-zinc-700">Imagenes en ZIP:</p>
-          <code id="informe-zip-summary" class="mt-2 block rounded-md bg-zinc-100 px-3 py-2 text-sm text-zinc-800">ZIP pendiente</code>
+        <aside class="summary-panel">
+          <h3>Resumen del Informe Pericial</h3>
+          <div class="summary-grid">
+            <button class="summary-item" data-summary-step="informe-1" type="button" disabled><span class="summary-item-icon"><i data-lucide="file-check-2"></i></span><span>Plantilla<code id="informe-template-current">templates/Plantilla_Informe.docx</code></span><i data-lucide="chevron-right"></i></button>
+            <button class="summary-item" data-summary-step="informe-2" type="button" disabled><span class="summary-item-icon"><i data-lucide="images"></i></span><span>Imágenes detectadas<code id="informe-zip-summary">ZIP y/o imágenes pendiente</code></span><i data-lucide="chevron-right"></i></button>
+            <button class="summary-item" data-summary-step="informe-3" type="button" disabled><span class="summary-item-icon"><i data-lucide="list-checks"></i></span><span>Campos detectados<code id="informe-placeholder-summary">Analizando plantilla...</code></span><i data-lucide="chevron-right"></i></button>
+            <button class="summary-item" data-summary-step="informe-4" type="button" disabled><span class="summary-item-icon"><i data-lucide="route"></i></span><span>Estado actual<code id="informe-flow-status">Paso 1 de 4</code></span><i data-lucide="chevron-right"></i></button>
+          </div>
         </aside>
       </section>
+      <section id="tab-rutas" class="tab-panel flex-1 py-5">
+        <div class="grid gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
+          <form id="route-form" class="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="border-b border-slate-100 pb-4">
+              <p class="text-xs font-bold uppercase tracking-wide text-teal-700">Generador de estructura</p>
+              <h2 class="mt-1 text-xl font-semibold">Nueva ruta</h2>
+              <p class="mt-1 text-sm text-slate-600">Agrega las carpetas al listado antes de generar los archivos.</p>
+            </div>
+            <label class="block text-sm font-semibold text-slate-700">Ruta base
+              <input id="route-base-path" class="mt-1 min-h-11 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm" placeholder="C:\Users\TuUsuario\Desktop" required />
+            </label>
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              <label class="block text-sm font-semibold text-slate-700">Carpeta de investigación
+                <input id="route-case-number" class="mt-1 min-h-11 w-full rounded-md border border-slate-300 px-3 py-2" placeholder="Ej. 51592" required />
+              </label>
+              <label class="block text-sm font-semibold text-slate-700">Año
+                <input id="route-year" type="number" min="2000" max="2100" class="mt-1 min-h-11 w-full rounded-md border border-slate-300 px-3 py-2" required />
+              </label>
+            </div>
+            <label class="block text-sm font-semibold text-slate-700">Domicilio
+              <textarea id="route-address" class="mt-1 min-h-24 w-full rounded-md border border-slate-300 px-3 py-2" placeholder="Escribe el domicilio" required></textarea>
+            </label>
+            <fieldset>
+              <legend class="text-sm font-semibold text-slate-700">Estatus</legend>
+              <div class="mt-2 grid grid-cols-2 gap-2">
+                <label class="cursor-pointer rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800"><input type="radio" name="route-status" value="positivo" class="mr-2" checked />Positivo</label>
+                <label class="cursor-pointer rounded-md border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-800"><input type="radio" name="route-status" value="negativo" class="mr-2" />Negativo</label>
+              </div>
+            </fieldset>
+            <div class="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+              <p><strong>Positivo:</strong> Fotos y Videos; dentro de Videos: ISO y Originales.</p>
+              <p class="mt-1"><strong>Negativo:</strong> únicamente Fotos.</p>
+            </div>
+            <button class="min-h-11 w-full rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="submit"><span class="inline-flex items-center gap-2"><i data-lucide="list-plus"></i>Añadir a la lista</span></button>
+          </form>
 
+          <section class="flex h-[700px] max-h-[calc(100vh-2rem)] min-h-[560px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex shrink-0 flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div><h2 class="text-xl font-semibold">Carpetas por generar</h2><p id="route-list-count" class="mt-1 text-sm text-slate-600">0 carpetas en la lista</p></div>
+              <button id="clear-route-list" class="rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" type="button"><span class="inline-flex items-center gap-2"><i data-lucide="trash-2"></i>Quitar todas</span></button>
+            </div>
+            <div id="route-list" class="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+              <div id="route-list-empty" class="flex min-h-56 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-200 text-center text-slate-500"><i data-lucide="folder-plus" class="h-10 w-10"></i><p class="mt-3 font-semibold">Todavía no hay carpetas</p><p class="mt-1 text-sm">Completa el formulario y añádelas a esta lista.</p></div>
+            </div>
+            <div class="mt-3 grid shrink-0 gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2">
+              <button id="generate-routes-powershell" class="min-h-11 rounded-md border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100" type="button"><span class="inline-flex items-center gap-2"><i data-lucide="terminal-square"></i>Generar PowerShell</span></button>
+              <button id="generate-routes-json" class="min-h-11 rounded-md border border-teal-300 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-100" type="button"><span class="inline-flex items-center gap-2"><i data-lucide="braces"></i>Generar JSON</span></button>
+            </div>
+          </section>
+        </div>
+      </section>
       <section id="tab-historial" class="tab-panel hidden flex-1 py-5">
         <div class="w-full rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 class="text-lg font-semibold">Historial</h2>
-            <button id="refresh-history" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
-              Actualizar
-            </button>
+            <div class="flex flex-wrap gap-2">
+              <button id="delete-selected-history" class="rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40" type="button" disabled>Borrar seleccionados</button>
+              <button id="delete-all-history" class="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40" type="button" disabled>Borrar todo</button>
+              <button id="refresh-history" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">Actualizar</button>
+            </div>
           </div>
           <div class="mt-4 overflow-x-auto">
             <table class="w-full min-w-[760px] border-collapse text-left text-sm">
               <thead class="border-b border-zinc-200 text-xs uppercase text-zinc-500">
                 <tr>
+                  <th class="w-10 py-3 pr-3"><input id="select-all-history" type="checkbox" class="h-4 w-4 rounded border-zinc-300" aria-label="Seleccionar todos los registros" /></th>
                   <th class="py-3 pr-4">Fecha</th>
                   <th class="py-3 pr-4">Tipo</th>
                   <th class="py-3 pr-4">Referencia</th>
                   <th class="py-3 pr-4">Peso</th>
-                  <th class="py-3 pr-4">Imagenes</th>
+                  <th class="py-3 pr-4">imágenes</th>
                   <th class="py-3 pr-4">Archivos</th>
+                  <th class="py-3">Borrar</th>
                 </tr>
               </thead>
               <tbody id="history-body" class="divide-y divide-zinc-100"></tbody>
@@ -186,6 +761,8 @@
           </div>
         </div>
       </section>
+      <section id="status" class="mb-4 hidden rounded-md border px-4 py-3 text-sm"></section>
+      <section id="generation-result" class="mb-5 hidden rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-950"></section>
     </main>
 
     <div id="loading-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/60 p-4">
@@ -203,53 +780,132 @@
             <h2 id="fields-modal-title" class="text-lg font-semibold">Campos detectados</h2>
             <p id="fields-modal-count" class="mt-1 text-sm text-zinc-600"></p>
           </div>
-          <button id="close-fields-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
-            Cerrar
-          </button>
+          <div class="flex flex-wrap gap-2">
+            <button id="view-fields-images" class="hidden rounded-md border border-teal-600 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-100" type="button">Ver imágenes</button>
+            <button id="exit-fields-images" class="hidden rounded-md border border-teal-700 bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="button">Salir de imágenes</button>
+            <button id="close-fields-modal" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">Cerrar</button>
+          </div>
         </header>
         <section class="min-h-0 flex-1 overflow-y-auto p-4">
-          <div id="cadena-fields" class="hidden grid gap-4 lg:grid-cols-2"></div>
-          <div id="informe-fields" class="grid gap-4 lg:grid-cols-2"></div>
+          <div id="fields-text-view">
+            <div id="cadena-fields" class="hidden grid gap-4 lg:grid-cols-2"></div>
+            <div id="informe-fields" class="grid gap-4 lg:grid-cols-2"></div>
+          </div>
+          <div id="fields-images-view" class="hidden">
+            <div id="fields-images-empty" class="hidden rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">No hay imágenes cargadas. Regresa al Paso 2 para seleccionar imágenes o un archivo ZIP.</div>
+            <div id="fields-images-content" class="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+              <aside id="fields-image-list" class="grid content-start gap-2"></aside>
+              <section>
+                <div class="rounded-md border border-zinc-200 bg-zinc-950 p-3">
+                  <img id="fields-selected-image" alt="Imagen seleccionada para consulta" class="mx-auto max-h-[48vh] w-full object-contain" />
+                </div>
+                <h3 id="fields-selected-image-name" class="mt-3 truncate text-sm font-semibold text-zinc-800"></h3>
+              </section>
+            </div>
+          </div>
         </section>
         <footer class="border-t border-zinc-200 p-4">
-          <p class="text-sm text-zinc-600">Los cambios se guardan automaticamente en el JSON interno.</p>
+          <p class="text-sm text-zinc-600">Los cambios se guardan automáticamente en el JSON interno.</p>
         </footer>
       </div>
     </div>
 
-    <div id="zip-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-zinc-950/60 p-3">
-      <div class="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-lg bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="zip-modal-title">
+    <div id="zip-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-zinc-950/60 p-1 sm:p-2">
+      <div class="flex max-h-[98vh] w-full max-w-[96vw] flex-col overflow-hidden rounded-lg bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="zip-modal-title">
         <header class="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 id="zip-modal-title" class="text-lg font-semibold">Imagenes detectadas</h2>
+            <h2 id="zip-modal-title" class="text-lg font-semibold">Inspeccionar imágenes detectadas</h2>
             <p id="zip-modal-count" class="mt-1 text-sm text-zinc-600"></p>
           </div>
-          <button id="close-zip-editor" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50" type="button">
+          <button id="close-zip-editor" class="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold hover:bg-zinc-50" type="button">
             Cerrar
           </button>
         </header>
-        <div class="grid min-h-0 flex-1 gap-0 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <aside class="min-h-[220px] overflow-y-auto border-b border-zinc-200 p-3 lg:border-b-0 lg:border-r">
-            <div class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-              Arrastra una imagen hacia la fotografia detectada correspondiente.
+        <div class="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[430px_minmax(0,1fr)]">
+          <aside class="flex max-h-[34vh] min-h-0 flex-col border-b border-zinc-200 bg-slate-50 p-2 lg:max-h-none lg:border-b-0 lg:border-r">
+            <div id="zip-image-list" class="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto p-0.5"></div>
+            <div class="mt-2 grid shrink-0 grid-cols-6 gap-1 border-t border-zinc-200 pt-2">
+              <button id="selected-rotate-left" class="zip-selected-action" title="Girar seleccionada a la izquierda" aria-label="Girar seleccionada a la izquierda" type="button"><i data-lucide="rotate-ccw"></i></button>
+              <button id="selected-rotate-right" class="zip-selected-action" title="Girar seleccionada a la derecha" aria-label="Girar seleccionada a la derecha" type="button"><i data-lucide="rotate-cw"></i></button>
+              <button id="selected-replace-image" class="zip-selected-action" title="Cambiar imagen seleccionada" aria-label="Cambiar imagen seleccionada" type="button"><i data-lucide="image-up"></i></button>
+              <button id="selected-reset-image" class="zip-selected-action" title="Restaurar imagen seleccionada" aria-label="Restaurar imagen seleccionada" type="button"><i data-lucide="history"></i></button>
+              <button id="add-images" class="zip-selected-action text-teal-700" title="Agregar imágenes" aria-label="Agregar imágenes" type="button"><i data-lucide="plus"></i></button>
+              <button id="remove-selected-image" class="zip-selected-action text-red-700" title="Quitar imagen seleccionada" aria-label="Quitar imagen seleccionada" type="button"><i data-lucide="trash-2"></i></button>
             </div>
-            <div id="zip-image-list" class="grid grid-cols-2 gap-2"></div>
           </aside>
-          <section class="min-h-0 overflow-y-auto p-4">
-            <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-500">Fotografias de la plantilla</h3>
-              <p id="drop-zone-summary" class="text-sm text-zinc-500"></p>
+          <section class="min-h-0 overflow-y-auto p-4 lg:p-5">
+            <div class="flex rounded-md border border-zinc-200 bg-zinc-950 p-3">
+              <div id="inspector-image-stage" class="relative mx-auto inline-block max-w-full overflow-hidden">
+                <img id="selected-image-preview" alt="Imagen seleccionada" class="block max-h-[60vh] max-w-full object-contain" />
+                <div id="ocr-region-layer" class="absolute inset-0 hidden" aria-label="Seleccionar región para OCR">
+                  <div id="ocr-region-box" class="hidden"></div>
+                </div>
+              </div>
             </div>
-            <div id="informe-image-fields" class="grid gap-3 xl:grid-cols-2"></div>
+            <h3 id="selected-image-name" class="mt-4 truncate text-sm font-semibold text-zinc-800">Selecciona una imagen</h3>
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+              <button id="activate-region-ocr" class="min-h-10 rounded-md border border-teal-700 px-3 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-50" type="button"><span class="inline-flex items-center gap-2"><i data-lucide="scan-text"></i>Extraer texto de una zona</span></button>
+              <button id="run-region-ocr" class="hidden min-h-10 rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled><span class="inline-flex items-center gap-2"><i data-lucide="sparkles"></i>Reconocer selección</span></button>
+              <button id="cancel-region-ocr" class="hidden min-h-10 rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold hover:bg-zinc-50" type="button">Cancelar</button>
+              <span id="ocr-region-help" class="hidden text-sm text-zinc-600">Arrastra sobre la imagen para delimitar únicamente el texto.</span>
+            </div>
+            <div id="ocr-region-result" class="mt-3 hidden rounded-md border border-zinc-200 bg-slate-50 p-3">
+              <div class="mb-2 flex items-center justify-between gap-2">
+                <p id="ocr-region-confidence" class="text-xs font-semibold text-zinc-600">Texto reconocido</p>
+                <div class="flex gap-2"><button id="copy-region-ocr" class="rounded border border-zinc-300 px-2 py-1 text-xs font-semibold hover:bg-white" type="button">Copiar</button><button id="hide-region-ocr" class="rounded border border-zinc-300 px-2 py-1 text-xs font-semibold hover:bg-white" type="button">Ocultar</button></div>
+              </div>
+              <textarea id="ocr-region-text" class="min-h-28 w-full rounded-md border border-zinc-300 bg-white p-2 text-sm" spellcheck="true"></textarea>
+            </div>
           </section>
         </div>
         <footer class="flex flex-col gap-3 border-t border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
           <p id="zip-modal-summary" class="text-sm text-zinc-600"></p>
-          <button id="apply-zip-editor" class="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="button">
-            Usar estas imagenes
+          <button id="apply-zip-editor" class="min-h-11 w-full rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 sm:w-auto" type="button">
+            Cerrar inspección
           </button>
         </footer>
         <input id="replace-image-input" type="file" accept="image/*" class="hidden" />
+        <input id="add-image-input" type="file" accept="image/*" multiple class="hidden" />
+      </div>
+    </div>
+
+    <div id="image-assignment-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-zinc-950/60 p-2 sm:p-4">
+      <div class="flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-lg bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="image-assignment-title">
+        <header class="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 id="image-assignment-title" class="text-lg font-semibold">Asignación de imágenes</h2>
+            <p id="image-assignment-count" class="mt-1 text-sm text-zinc-600"></p>
+          </div>
+          <button id="close-image-assignment" class="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold hover:bg-zinc-50" type="button">Cerrar</button>
+        </header>
+        <div id="assignment-workspace" class="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[430px_minmax(0,1fr)]">
+          <aside id="assignment-drag-panel" class="max-h-[34vh] overflow-y-auto border-b border-zinc-200 bg-slate-50 p-2 lg:max-h-none lg:border-b-0 lg:border-r">
+            <p class="mb-2 text-xs text-zinc-600">Arrastra una imagen hasta el campo de la plantilla donde debe colocarse. Usa la lupa para verla en grande.</p>
+            <div id="assignment-image-list" class="grid grid-cols-1 gap-2"></div>
+          </aside>
+          <section id="assignment-fields-panel" class="min-h-0 overflow-y-auto p-3">
+            <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <h3 class="text-sm font-semibold uppercase tracking-wide text-zinc-500">Campos de imagen de la plantilla</h3>
+              <p id="drop-zone-summary" class="text-sm text-zinc-500"></p>
+            </div>
+            <div id="informe-image-fields" class="grid gap-3 xl:grid-cols-2"></div>
+          </section>
+          <section id="assignment-preview-panel" class="col-span-full hidden min-h-0 overflow-y-auto bg-slate-950 p-4">
+            <div class="mx-auto flex h-full max-w-6xl flex-col">
+              <div class="mb-3 flex items-center justify-between gap-3 text-white">
+                <h3 id="assignment-preview-name" class="truncate text-sm font-semibold"></h3>
+                <button id="close-assignment-preview" class="min-h-11 shrink-0 rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20" type="button"><i data-lucide="arrow-left"></i> Salir de vista</button>
+              </div>
+              <div class="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-black/40 p-3">
+                <img id="assignment-preview-image" alt="Vista ampliada de la imagen" class="max-h-full max-w-full object-contain" />
+              </div>
+            </div>
+          </section>
+        </div>
+        <footer class="flex flex-col gap-3 border-t border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm text-zinc-600">Las asignaciones se guardan automáticamente.</p>
+          <button id="apply-image-assignment" class="min-h-11 w-full rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 sm:w-auto" type="button">Guardar asignación</button>
+        </footer>
       </div>
     </div>
 
@@ -283,6 +939,20 @@
           <button id="apply-json" class="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="button">
             Cargar al formulario
           </button>
+        </footer>
+      </div>
+    </div>
+
+    <div id="routes-output-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-zinc-950/60 p-3">
+      <div class="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="routes-output-title">
+        <header class="flex items-center justify-between gap-3 border-b border-zinc-200 p-4">
+          <div><h2 id="routes-output-title" class="text-lg font-semibold">Archivo generado</h2><p id="routes-output-subtitle" class="mt-1 text-sm text-zinc-600"></p></div>
+          <button id="close-routes-output" class="rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold hover:bg-zinc-50" type="button">Cerrar</button>
+        </header>
+        <section class="min-h-0 flex-1 p-4"><textarea id="routes-output-text" spellcheck="false" readonly class="h-[60vh] w-full resize-none rounded-md border border-zinc-300 bg-zinc-950 p-4 font-mono text-sm leading-6 text-zinc-100"></textarea></section>
+        <footer class="flex flex-col gap-2 border-t border-zinc-200 p-4 sm:flex-row sm:justify-end">
+          <button id="copy-routes-output" class="rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold hover:bg-zinc-50" type="button">Copiar</button>
+          <button id="download-routes-output" class="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" type="button">Descargar archivo</button>
         </footer>
       </div>
     </div>
@@ -375,8 +1045,23 @@
         originalFile: null,
         entries: [],
         selectedIndex: -1,
-        replacingIndex: -1
+        replacingIndex: -1,
+        structureChanged: false,
+        inspectorPreviewUrl: "",
+        inspectorPreviewBlob: null,
+        inspectorPreviewRequest: 0,
+        returnToFieldsModal: false,
+        ocrActive: false,
+        ocrSelection: null,
+        ocrDragStart: null
       };
+      const routeState = {
+        entries: [],
+        outputText: "",
+        outputFileName: "",
+        outputMimeType: "text/plain"
+      };
+      const historyState = { items: [] };
       const templateState = {
         templates: [],
         defaults: {
@@ -405,6 +1090,7 @@
       });
 
       function activateTab(tab) {
+        clearTransientMessages();
         document.querySelectorAll(".tab-btn").forEach((button) => {
           button.classList.toggle("bg-white", button.dataset.tab === tab);
           button.classList.toggle("shadow-sm", button.dataset.tab === tab);
@@ -412,21 +1098,45 @@
         document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.add("hidden"));
         $(`#tab-${tab}`).classList.remove("hidden");
         if (tab === "historial") loadHistory();
+        refreshIcons();
       }
 
-      $("#use-default-cadena-template").addEventListener("click", useDefaultCadenaTemplate);
       $("#cadena-template-file").addEventListener("change", handleCadenaTemplateFile);
       $("#open-cadena-fields-modal").addEventListener("click", () => openFieldsModal("cadena"));
       $("#open-cadena-json-modal").addEventListener("click", () => openJsonModal("cadena"));
-      $("#use-default-template").addEventListener("click", useDefaultInformeTemplate);
       $("#informe-template-file").addEventListener("change", handleInformeTemplateFile);
       $("#zip-file").addEventListener("change", handleZipFile);
       $("#open-fields-modal").addEventListener("click", () => openFieldsModal("informe"));
       $("#close-fields-modal").addEventListener("click", closeFieldsModal);
-      $("#open-zip-editor").addEventListener("click", openZipEditor);
+      $("#view-fields-images").addEventListener("click", showFieldsImages);
+      $("#exit-fields-images").addEventListener("click", showFieldsText);
+      $("#open-zip-editor").addEventListener("click", () => {
+        zipState.returnToFieldsModal = false;
+        openZipEditor();
+      });
       $("#close-zip-editor").addEventListener("click", closeZipEditor);
       $("#apply-zip-editor").addEventListener("click", closeZipEditor);
+      $("#open-image-assignment").addEventListener("click", openImageAssignment);
+      $("#close-image-assignment").addEventListener("click", closeImageAssignment);
+      $("#apply-image-assignment").addEventListener("click", closeImageAssignment);
+      $("#close-assignment-preview").addEventListener("click", closeAssignmentPreview);
       $("#replace-image-input").addEventListener("change", replaceSelectedImage);
+      $("#add-image-input").addEventListener("change", addImagesToInspector);
+      $("#selected-rotate-left").addEventListener("click", () => rotateImageAt(zipState.selectedIndex, -90));
+      $("#selected-rotate-right").addEventListener("click", () => rotateImageAt(zipState.selectedIndex, 90));
+      $("#selected-replace-image").addEventListener("click", replaceCurrentImage);
+      $("#selected-reset-image").addEventListener("click", () => resetImageAt(zipState.selectedIndex));
+      $("#add-images").addEventListener("click", () => $("#add-image-input").click());
+      $("#remove-selected-image").addEventListener("click", removeSelectedImage);
+      $("#activate-region-ocr").addEventListener("click", activateRegionOcr);
+      $("#cancel-region-ocr").addEventListener("click", resetRegionOcr);
+      $("#run-region-ocr").addEventListener("click", runRegionOcr);
+      $("#hide-region-ocr").addEventListener("click", () => $("#ocr-region-result").classList.add("hidden"));
+      $("#copy-region-ocr").addEventListener("click", copyRegionOcr);
+      $("#ocr-region-layer").addEventListener("pointerdown", startOcrSelection);
+      $("#ocr-region-layer").addEventListener("pointermove", moveOcrSelection);
+      $("#ocr-region-layer").addEventListener("pointerup", finishOcrSelection);
+      $("#ocr-region-layer").addEventListener("pointercancel", finishOcrSelection);
       $("#cadena-template").addEventListener("change", () => updateTemplateSummary("cadena"));
       $("#informe-template").addEventListener("change", () => updateTemplateSummary("informe"));
       $("#open-json-modal").addEventListener("click", () => openJsonModal("informe"));
@@ -439,6 +1149,103 @@
       $("#cadena-form").addEventListener("submit", submitCadenaGeneration);
       $("#informe-form").addEventListener("submit", submitInformeGeneration);
       $("#refresh-history").addEventListener("click", loadHistory);
+      $("#select-all-history").addEventListener("change", toggleAllHistory);
+      $("#delete-selected-history").addEventListener("click", deleteSelectedHistory);
+      $("#delete-all-history").addEventListener("click", deleteAllHistory);
+      $("#route-form").addEventListener("submit", addRouteEntry);
+      $("#clear-route-list").addEventListener("click", clearRouteEntries);
+      $("#generate-routes-powershell").addEventListener("click", showRoutesPowerShell);
+      $("#generate-routes-json").addEventListener("click", showRoutesJson);
+      $("#close-routes-output").addEventListener("click", closeRoutesOutput);
+      $("#copy-routes-output").addEventListener("click", copyRoutesOutput);
+      $("#download-routes-output").addEventListener("click", downloadRoutesOutput);
+      $("#route-year").value = String(new Date().getFullYear());
+      renderRouteList();
+      refreshIcons();
+      document.querySelectorAll("[data-click-target]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const target = document.getElementById(button.dataset.clickTarget);
+          if (target && !target.disabled) target.click();
+        });
+      });
+      document.querySelectorAll("[data-continue-to]").forEach((button) => {
+        button.addEventListener("click", () => {
+          clearTransientMessages();
+          const targetKey = button.dataset.continueTo;
+          const [kind, step] = targetKey.split("-");
+          setCurrentStep(kind, Number(step));
+          document.querySelector(`[data-step-card="${targetKey}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      });
+      document.querySelectorAll("[data-back-to]").forEach((button) => {
+        button.addEventListener("click", () => {
+          clearTransientMessages();
+          const targetKey = button.dataset.backTo;
+          const [kind, step] = targetKey.split("-");
+          setCurrentStep(kind, Number(step));
+          document.querySelector(`[data-step-card="${targetKey}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      });
+      document.querySelectorAll("[data-summary-step]").forEach((button) => {
+        button.addEventListener("click", () => navigateToStep(button.dataset.summaryStep));
+      });
+      document.querySelectorAll("[data-wizard-step]").forEach((button) => {
+        button.addEventListener("click", () => navigateToStep(button.dataset.wizardStep));
+      });
+
+      function navigateToStep(targetKey) {
+        clearTransientMessages();
+        const [kind, step] = targetKey.split("-");
+        setCurrentStep(kind, Number(step));
+        document.querySelector(`[data-step-card="${targetKey}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+
+      function setCurrentStep(kind, step) {
+        document.querySelectorAll(`[data-step-card^="${kind}-"]`).forEach((card) => {
+          card.classList.toggle("is-current", card.dataset.stepCard === `${kind}-${step}`);
+        });
+        document.querySelectorAll(`[data-wizard-step^="${kind}-"]`).forEach((item) => {
+          const itemStep = Number(item.dataset.wizardStep.split("-")[1]);
+          item.classList.toggle("is-current", itemStep === step);
+          item.classList.toggle("is-done", itemStep < step);
+          if (itemStep === step) item.setAttribute("aria-current", "step");
+          else item.removeAttribute("aria-current");
+        });
+        const status = $(`#${kind}-flow-status`);
+        if (status) status.textContent = `Paso ${step} de 4`;
+        if (kind === "informe") updateInformeReadiness();
+        refreshIcons();
+      }
+
+      function clearTransientMessages() {
+        statusBox.classList.add("hidden");
+        generationResult.classList.add("hidden");
+        [$("#cadena-missing-warning"), $("#missing-warning")].filter(Boolean).forEach((warning) => warning.classList.add("hidden"));
+      }
+
+      function refreshIcons() {
+        if (window.lucide) {
+          window.lucide.createIcons();
+          return;
+        }
+        const fallback = {
+          "sparkles": "*",
+          "file-check-2": "DOC",
+          "upload": "UP",
+          "list-checks": "TXT",
+          "braces": "{}",
+          "arrow-right": ">",
+          "arrow-left": "<",
+          "folder-up": "ZIP",
+          "images": "IMG",
+          "image-plus": "IMG",
+          "file-text": "DOC",
+          "file-down": "DOC"
+        };
+        document.querySelectorAll("i[data-lucide]").forEach((icon) => {
+          icon.textContent = fallback[icon.dataset.lucide] || "";
+        });
+      }
 
       async function loadTemplates() {
         try {
@@ -469,8 +1276,10 @@
       function renderTemplateSelect(kind) {
         const select = $(`#${kind}-template`);
         if (!templateState.templates.length) {
-          select.innerHTML = `<option value="">No hay plantillas DOCX</option>`;
-          select.disabled = true;
+          const fallback = templateState.defaults[kind];
+          select.innerHTML = `<option value="${escapeHtml(fallback)}">${escapeHtml(fallback)}</option>`;
+          select.value = fallback;
+          select.disabled = false;
           updateTemplateSummary(kind);
           return;
         }
@@ -488,58 +1297,67 @@
 
       function renderTemplateError(kind) {
         const select = $(`#${kind}-template`);
-        select.innerHTML = `<option value="">Error al cargar plantillas</option>`;
-        select.disabled = true;
+        const fallback = templateState.defaults[kind];
+        select.innerHTML = `<option value="${escapeHtml(fallback)}">${escapeHtml(fallback)}</option>`;
+        select.value = fallback;
+        select.disabled = false;
         updateTemplateSummary(kind);
       }
 
       function updateTemplateSummary(kind) {
         const selectedId = $(`#${kind}-template`).value;
         const template = templateState.templates.find((item) => item.id === selectedId);
-        $(`#${kind}-template-current`).textContent = template ? `templates/${template.file_name}` : "Sin plantillas DOCX";
+        const fallbackName = selectedId || templateState.defaults[kind];
+        $(`#${kind}-template-current`).textContent = template ? `templates/${template.file_name}` : `templates/${fallbackName}`;
         if (kind === "cadena") {
-          $("#cadena-template-name").textContent = template ? `Plantilla: templates/${template.file_name}` : "Sin plantillas DOCX";
+          $("#cadena-template-name").textContent = template ? `Plantilla: templates/${template.file_name}` : `Plantilla: templates/${fallbackName}`;
         }
         if (kind === "informe") {
-          $("#informe-template-name").textContent = template ? `Plantilla: templates/${template.file_name}` : "Sin plantillas DOCX";
+          $("#informe-template-name").textContent = template ? `Plantilla: templates/${template.file_name}` : `Plantilla: templates/${fallbackName}`;
         }
       }
 
       async function loadJsonFile(event, targetSelector) {
         const file = event.target.files[0];
         if (!file) return;
-        $(targetSelector).value = await file.text();
-      }
-
-      async function useDefaultCadenaTemplate() {
-        cadenaState.mode = "default";
-        cadenaState.customTemplateFile = null;
-        $("#cadena-template-file").value = "";
-        updateTemplateSummary("cadena");
         try {
-          await analyzeCadenaTemplate({ useSamples: true });
+          $(targetSelector).value = await file.text();
         } catch (error) {
-          showStatus(error.message, "error");
+          showStatus("No pude leer el archivo JSON. Vuelve a seleccionarlo desde una carpeta local con permisos de lectura.", "error");
         }
       }
 
+      async function copyFileToMemory(file) {
+        // Evita conservar referencias del selector que Windows o el navegador pueden invalidar despues.
+        const bytes = await file.arrayBuffer();
+        return new File([bytes], file.name, {
+          type: file.type || "application/octet-stream",
+          lastModified: file.lastModified
+        });
+      }
+
       async function handleCadenaTemplateFile(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        if (!file.name.toLowerCase().endsWith(".docx")) {
+        const selectedFile = event.target.files[0];
+        if (!selectedFile) return;
+        if (!selectedFile.name.toLowerCase().endsWith(".docx")) {
           event.target.value = "";
           showStatus("La plantilla debe ser un archivo .docx.", "error");
           return;
         }
 
-        cadenaState.mode = "custom";
-        cadenaState.customTemplateFile = file;
-        $("#cadena-template-current").textContent = file.name;
-        $("#cadena-template-name").textContent = `Plantilla: ${file.name}`;
         try {
+          const file = await copyFileToMemory(selectedFile);
+          event.target.value = "";
+          cadenaState.mode = "custom";
+          cadenaState.customTemplateFile = file;
+          $("#cadena-template-current").textContent = file.name;
+          $("#cadena-template-name").textContent = `Plantilla: ${file.name}`;
           await analyzeCadenaTemplate({ useSamples: false });
         } catch (error) {
-          showStatus(error.message, "error");
+          cadenaState.customTemplateFile = null;
+          showStatus(error.name === "NotReadableError"
+            ? "No pude leer la plantilla. Vuelve a seleccionarla desde una carpeta local con permisos de lectura."
+            : error.message, "error");
         }
       }
 
@@ -740,22 +1558,27 @@
       }
 
       async function handleInformeTemplateFile(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        if (!file.name.toLowerCase().endsWith(".docx")) {
+        const selectedFile = event.target.files[0];
+        if (!selectedFile) return;
+        if (!selectedFile.name.toLowerCase().endsWith(".docx")) {
           event.target.value = "";
           showStatus("La plantilla debe ser un archivo .docx.", "error");
           return;
         }
 
-        informeState.mode = "custom";
-        informeState.customTemplateFile = file;
-        $("#informe-template-current").textContent = file.name;
-        $("#informe-template-name").textContent = `Plantilla: ${file.name}`;
         try {
+          const file = await copyFileToMemory(selectedFile);
+          event.target.value = "";
+          informeState.mode = "custom";
+          informeState.customTemplateFile = file;
+          $("#informe-template-current").textContent = file.name;
+          $("#informe-template-name").textContent = `Plantilla: ${file.name}`;
           await analyzeInformeTemplate({ useSamples: false });
         } catch (error) {
-          showStatus(error.message, "error");
+          informeState.customTemplateFile = null;
+          showStatus(error.name === "NotReadableError"
+            ? "No pude leer la plantilla. Vuelve a seleccionarla desde una carpeta local con permisos de lectura."
+            : error.message, "error");
         }
       }
 
@@ -806,7 +1629,7 @@
         const fields = $("#informe-fields");
         const keys = informeState.placeholders.txt;
         $("#field-count").textContent = `${keys.length} campos`;
-        $("#fields-modal-count").textContent = `${keys.length} campos en orden de aparicion`;
+        $("#fields-modal-count").textContent = `${keys.length} campos en orden de aparición`;
         $("#informe-placeholder-summary").textContent = `${keys.length} Txt, ${informeState.placeholders.img.length} Img`;
 
         if (!keys.length) {
@@ -946,8 +1769,8 @@
       function renderImageFields() {
         const container = $("#informe-image-fields");
         const keys = informeState.placeholders.img;
-        $("#image-count").textContent = `${keys.length} fotografias`;
-        $("#informe-zip-summary").textContent = zipState.entries.length ? `${zipState.entries.length} imagenes cargadas` : "ZIP pendiente";
+        $("#image-count").textContent = `${keys.length} fotografías`;
+        $("#informe-zip-summary").textContent = zipState.entries.length ? `${zipState.entries.length} imágenes cargadas` : "ZIP y/o imágenes pendiente";
 
         if (!keys.length) {
           container.innerHTML = `<p class="text-sm text-zinc-500 md:col-span-2">La plantilla no tiene placeholders Img_.</p>`;
@@ -960,30 +1783,32 @@
         container.innerHTML = keys.map((key) => {
           const current = firstImageValue(informeState.payload[key]);
           const entry = zipState.entries.find((item) => item.name === current);
+          const assignmentModalOpen = !$("#image-assignment-modal").classList.contains("hidden");
+          const previewUrl = entry && assignmentModalOpen ? entry.assignmentThumbnailUrl : entry?.url;
 
           return `
             <section
               data-image-key="${escapeHtml(key)}"
-              class="image-drop-zone rounded-md border border-dashed ${current ? "border-teal-400 bg-teal-50" : "border-zinc-300 bg-white"} p-3 transition"
+              class="image-drop-zone rounded-md border border-dashed ${current ? "border-teal-400 bg-teal-50" : "border-zinc-300 bg-white"} p-2 transition"
             >
               <div class="flex items-start justify-between gap-3">
                 <div>
                   <h4 class="text-sm font-semibold text-zinc-800">${escapeHtml(fieldLabel(key))}</h4>
                   <p class="mt-1 text-xs text-zinc-500">${escapeHtml(key)}</p>
                 </div>
-                <button class="clear-image rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-white" data-image-key="${escapeHtml(key)}" type="button">Limpiar</button>
+                <button class="clear-image min-h-8 rounded border border-zinc-300 px-2 py-1 text-xs font-semibold hover:bg-white" data-image-key="${escapeHtml(key)}" type="button">Limpiar</button>
               </div>
-              <div class="mt-3 flex min-h-[96px] items-center justify-center rounded-md bg-white/80 p-2 text-sm text-zinc-500">
+              <div class="mt-2 flex min-h-[54px] items-center justify-center rounded-md bg-white/80 p-2 text-xs text-zinc-500">
                 ${
                   entry
-                    ? `<div class="flex w-full items-center gap-3">
-                        <img src="${entry.url}" alt="" class="h-20 w-20 shrink-0 rounded object-cover" style="transform: rotate(${entry.rotation}deg)" />
+                    ? `<div class="flex w-full items-center gap-2">
+                        ${previewUrl ? `<img src="${previewUrl}" alt="" class="h-12 w-12 shrink-0 rounded object-cover" style="transform: rotate(${entry.rotation}deg)" />` : `<div class="h-12 w-12 shrink-0 animate-pulse rounded bg-zinc-200"></div>`}
                         <div class="min-w-0">
                           <p class="truncate font-medium text-zinc-800">${escapeHtml(entry.name)}</p>
                           <p class="mt-1 text-xs text-zinc-500">Arrastra otra imagen para reemplazarla.</p>
                         </div>
                       </div>`
-                    : "Suelta aqui una imagen del ZIP"
+                    : "Suelta aquí una imagen del ZIP y/o Imágenes"
                 }
               </div>
             </section>
@@ -1046,6 +1871,7 @@
 
       function syncJsonTextarea() {
         $("#informe-json").value = JSON.stringify(informeState.payload, null, 2);
+        updateInformeReadiness();
       }
 
       function applyPayloadToForm(payload) {
@@ -1232,75 +2058,108 @@
       }
 
       async function handleZipFile(event) {
-        const file = event.target.files[0];
+        const selectedFiles = Array.from(event.target.files || []);
         clearZipState();
 
-        if (!file) {
-          $("#zip-name").textContent = "ZIP pendiente";
+        if (!selectedFiles.length) {
+          $("#zip-name").textContent = "ZIP y/o Imágenes pendiente";
           $("#open-zip-editor").disabled = true;
+          $("#open-image-assignment").disabled = true;
           renderImageFields();
           return;
         }
 
-        if (!file.name.toLowerCase().endsWith(".zip")) {
+        const invalid = selectedFiles.filter((file) => !isZipFile(file) && !isImageFile(file));
+        if (invalid.length) {
           $("#zip-file").value = "";
-          $("#zip-name").textContent = "ZIP pendiente";
+          $("#zip-name").textContent = "ZIP y/o Imágenes pendiente";
           $("#open-zip-editor").disabled = true;
-          showStatus("Selecciona un archivo ZIP con imagenes.", "error");
+          $("#open-image-assignment").disabled = true;
+          showStatus("Selecciona ZIP y/o imágenes JPG, JPEG, PNG, WEBP, BMP o TIFF.", "error");
           return;
         }
 
-        if (typeof JSZip === "undefined") {
-          $("#zip-name").textContent = `ZIP: ${file.name}`;
-          showStatus("No pude cargar el visor de ZIP. Puedes generar el Word con el ZIP original.", "error");
+        if (selectedFiles.some(isZipFile) && typeof JSZip === "undefined") {
+          $("#zip-name").textContent = `ZIP y/o Imágenes: ${selectedFiles.map((file) => file.name).join(", ")}`;
+          showStatus("No pude cargar el visor de ZIP y/o Imágenes.", "error");
           return;
         }
 
-        $("#zip-name").textContent = `Leyendo ZIP: ${file.name}`;
-        showStatus("Leyendo imagenes del ZIP...", "info");
+        $("#zip-name").textContent = "Leyendo ZIP y/o Imágenes...";
+        showStatus("Leyendo imágenes del ZIP y/o Imágenes...", "info");
+        showLoading("Cargando imágenes...", "");
 
         try {
-          const zip = await JSZip.loadAsync(file);
-          const files = Object.values(zip.files)
-            .filter((entry) => !entry.dir)
-            .filter((entry) => !entry.name.startsWith("__MACOSX/"))
-            .filter((entry) => imageExtensions.has(extensionOf(entry.name)));
-
+          const files = await Promise.all(selectedFiles.map(copyFileToMemory));
+          event.target.value = "";
           const entries = [];
-          for (const entry of files) {
-            const blob = await entry.async("blob");
-            entries.push({
-              name: fileNameOnly(entry.name),
-              blob,
-              originalBlob: blob,
-              url: URL.createObjectURL(blob),
-              rotation: 0,
-              replaced: false
-            });
+          for (const file of files) {
+            if (isZipFile(file)) {
+              const zip = await JSZip.loadAsync(file);
+              const zipFiles = Object.values(zip.files)
+                .filter((entry) => !entry.dir)
+                .filter((entry) => !entry.name.startsWith("__MACOSX/"))
+                .filter((entry) => imageExtensions.has(extensionOf(entry.name)));
+
+              for (const entry of zipFiles) {
+                const blob = await entry.async("blob");
+                entries.push(imageEntry(fileNameOnly(entry.name), blob));
+              }
+            } else {
+              entries.push(imageEntry(fileNameOnly(file.name), file));
+            }
           }
 
           entries.sort((a, b) => naturalCompare(a.name, b.name));
 
           if (!entries.length) {
-            throw new Error("El ZIP no tiene imagenes compatibles.");
+            throw new Error("No se encontraron imágenes compatibles.");
           }
 
-          zipState.originalFile = file;
+          zipState.originalFile = files.length === 1 && isZipFile(files[0]) ? files[0] : null;
           zipState.entries = entries;
           zipState.selectedIndex = 0;
           applyImageSamplesFromZip();
           renderImageFields();
-          $("#zip-name").textContent = `ZIP: ${file.name} (${entries.length} imagenes)`;
+          $("#zip-name").textContent = `ZIP y/o Imágenes: ${entries.length} imágenes cargadas`;
           $("#open-zip-editor").disabled = false;
-          showStatus("ZIP listo para revisar.", "success");
+          $("#open-image-assignment").disabled = false;
+          showStatus("ZIP y/o Imágenes listo para inspeccionar o asignar.", "success");
         } catch (error) {
           clearZipState();
-          $("#zip-name").textContent = "ZIP pendiente";
+          $("#zip-name").textContent = "ZIP y/o Imágenes pendiente";
           $("#zip-file").value = "";
           $("#open-zip-editor").disabled = true;
+          $("#open-image-assignment").disabled = true;
           renderImageFields();
-          showStatus(error.message, "error");
+          showStatus(error.name === "NotReadableError"
+            ? "No pude leer uno de los archivos. Vuelve a seleccionarlo desde una carpeta local con permisos de lectura."
+            : error.message, "error");
+        } finally {
+          hideLoading();
         }
+      }
+
+      function imageEntry(name, blob) {
+        return {
+          name,
+          blob,
+          originalBlob: blob,
+          url: URL.createObjectURL(blob),
+          assignmentThumbnailUrl: "",
+          assignmentThumbnailPromise: null,
+          assignmentThumbnailDisposed: false,
+          rotation: 0,
+          replaced: false
+        };
+      }
+
+      function isZipFile(file) {
+        return file.name.toLowerCase().endsWith(".zip");
+      }
+
+      function isImageFile(file) {
+        return imageExtensions.has(extensionOf(file.name));
       }
 
       function applyImageSamplesFromZip() {
@@ -1321,15 +2180,70 @@
         $("#fields-modal-title").textContent = kind === "cadena" ? "Campos detectados - Cadena de Custodia" : "Campos detectados - Informe Pericial";
         $("#cadena-fields").classList.toggle("hidden", kind !== "cadena");
         $("#informe-fields").classList.toggle("hidden", kind !== "informe");
+        $("#view-fields-images").classList.toggle("hidden", kind !== "informe");
+        showFieldsText();
         if (kind === "cadena") {
           renderCadenaFields();
-          $("#fields-modal-count").textContent = `${cadenaState.placeholders.txt.length} campos en orden de aparicion`;
+          $("#fields-modal-count").textContent = `${cadenaState.placeholders.txt.length} campos en orden de aparición`;
         } else {
           renderInformeFields();
-          $("#fields-modal-count").textContent = `${informeState.placeholders.txt.length} campos en orden de aparicion`;
+          $("#fields-modal-count").textContent = `${informeState.placeholders.txt.length} campos en orden de aparición`;
         }
         $("#fields-modal").classList.remove("hidden");
         $("#fields-modal").classList.add("flex");
+      }
+
+      function showFieldsText() {
+        $("#fields-text-view").classList.remove("hidden");
+        $("#fields-images-view").classList.add("hidden");
+        $("#exit-fields-images").classList.add("hidden");
+        const informeMode = activeFieldsKind === "informe";
+        $("#view-fields-images").classList.toggle("hidden", !informeMode);
+        if (informeMode) {
+          $("#fields-modal-count").textContent = `${informeState.placeholders.txt.length} campos en orden de aparición`;
+        }
+      }
+
+      function showFieldsImages() {
+        if (activeFieldsKind !== "informe") return;
+        if (!zipState.entries.length) {
+          showStatus("Sube primero ZIP y/o imágenes.", "error");
+          return;
+        }
+        closeFieldsModal();
+        zipState.returnToFieldsModal = true;
+        openZipEditor();
+      }
+
+      function renderFieldsImageViewer() {
+        const hasImages = zipState.entries.length > 0;
+        $("#fields-images-empty").classList.toggle("hidden", hasImages);
+        $("#fields-images-content").classList.toggle("hidden", !hasImages);
+        if (!hasImages) return;
+
+        const selectedIndex = zipState.entries[zipState.selectedIndex] ? zipState.selectedIndex : 0;
+        $("#fields-image-list").innerHTML = zipState.entries.map((entry, index) => `
+          <button class="image-inspector-thumb ${index === selectedIndex ? "is-selected" : ""}" data-view-field-image="${index}" type="button">
+            <img src="${entry.url}" alt="" style="transform: rotate(${entry.rotation}deg)" />
+            <span class="min-w-0"><strong class="block truncate text-sm text-zinc-800">${escapeHtml(entry.name)}</strong><small class="mt-1 block text-zinc-500">Ver imagen</small></span>
+          </button>
+        `).join("");
+        document.querySelectorAll("[data-view-field-image]").forEach((button) => {
+          button.addEventListener("click", () => inspectFieldsImageAt(Number(button.dataset.viewFieldImage)));
+        });
+        inspectFieldsImageAt(selectedIndex);
+      }
+
+      function inspectFieldsImageAt(index) {
+        const entry = zipState.entries[index];
+        if (!entry) return;
+        zipState.selectedIndex = index;
+        document.querySelectorAll("[data-view-field-image]").forEach((button) => {
+          button.classList.toggle("is-selected", Number(button.dataset.viewFieldImage) === index);
+        });
+        $("#fields-selected-image").src = entry.url;
+        $("#fields-selected-image").style.transform = `rotate(${entry.rotation}deg)`;
+        $("#fields-selected-image-name").textContent = entry.name;
       }
 
       function closeFieldsModal() {
@@ -1344,7 +2258,7 @@
 
       function openZipEditor() {
         if (!zipState.entries.length) {
-          showStatus("Sube primero un ZIP con imagenes.", "error");
+          showStatus("Sube primero ZIP y/o imágenes.", "error");
           return;
         }
         renderZipEditor();
@@ -1353,60 +2267,332 @@
       }
 
       function closeZipEditor() {
+        const shouldReturnToFields = zipState.returnToFieldsModal;
+        zipState.returnToFieldsModal = false;
+        clearInspectorPreview();
         $("#zip-modal").classList.add("hidden");
         $("#zip-modal").classList.remove("flex");
+        if (shouldReturnToFields) openFieldsModal("informe");
+      }
+
+      function openImageAssignment() {
+        if (!zipState.entries.length) {
+          showStatus("Sube primero ZIP y/o imágenes.", "error");
+          return;
+        }
+        closeAssignmentPreview();
+        $("#image-assignment-modal").classList.remove("hidden");
+        $("#image-assignment-modal").classList.add("flex");
+        renderImageAssignment();
+      }
+
+      function closeImageAssignment() {
+        closeAssignmentPreview();
+        $("#image-assignment-modal").classList.add("hidden");
+        $("#image-assignment-modal").classList.remove("flex");
+      }
+
+      function renderImageAssignment() {
+        $("#image-assignment-count").textContent = `${zipState.entries.length} imágenes disponibles`;
+        $("#assignment-image-list").innerHTML = zipState.entries.map((entry, index) => `
+          <article class="assignment-thumb" draggable="true" data-assignment-image="${escapeHtml(entry.name)}">
+            <img data-assignment-thumb-image="${index}" src="${entry.assignmentThumbnailUrl || "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="}" alt="" style="transform: rotate(${entry.rotation}deg)" />
+            <strong class="assignment-thumb-name text-zinc-800" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</strong>
+            <button class="assignment-zoom" data-assignment-zoom="${index}" type="button" title="Ver imagen en grande" aria-label="Ver ${escapeHtml(entry.name)} en grande"><i data-lucide="zoom-in"></i></button>
+          </article>
+        `).join("");
+        document.querySelectorAll("[data-assignment-image]").forEach((card) => {
+          card.addEventListener("dragstart", (event) => {
+            event.dataTransfer.setData("text/plain", card.dataset.assignmentImage);
+          });
+        });
+        document.querySelectorAll("[data-assignment-zoom]").forEach((button) => {
+          button.addEventListener("click", (event) => {
+            event.stopPropagation();
+            openAssignmentPreview(Number(button.dataset.assignmentZoom));
+          });
+          button.addEventListener("pointerdown", (event) => event.stopPropagation());
+        });
+        renderImageFields();
+        loadAssignmentThumbnails();
+        refreshIcons();
+      }
+
+      async function loadAssignmentThumbnails() {
+        for (let index = 0; index < zipState.entries.length; index += 1) {
+          const entry = zipState.entries[index];
+          try {
+            const thumbnailUrl = await ensureAssignmentThumbnail(entry);
+            document.querySelectorAll(`[data-assignment-thumb-image="${index}"], [data-zip-thumb-image="${index}"]`).forEach((image) => {
+              if (zipState.entries[index] === entry) image.src = thumbnailUrl;
+            });
+          } catch (error) {
+            document.querySelectorAll(`[data-assignment-thumb-image="${index}"], [data-zip-thumb-image="${index}"]`).forEach((image) => {
+              if (zipState.entries[index] === entry) image.src = entry.url;
+            });
+          }
+          if (index % 5 === 4) await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+        if (!$("#image-assignment-modal").classList.contains("hidden")) renderImageFields();
+      }
+
+      function ensureAssignmentThumbnail(entry) {
+        if (entry.assignmentThumbnailUrl) return Promise.resolve(entry.assignmentThumbnailUrl);
+        if (entry.assignmentThumbnailPromise) return entry.assignmentThumbnailPromise;
+        const sourceBlob = entry.blob;
+        entry.assignmentThumbnailDisposed = false;
+        entry.assignmentThumbnailPromise = createAssignmentThumbnail(sourceBlob).then((url) => {
+          if (entry.assignmentThumbnailDisposed || entry.blob !== sourceBlob) {
+            URL.revokeObjectURL(url);
+            entry.assignmentThumbnailPromise = null;
+            if (entry.assignmentThumbnailDisposed) throw new Error("Miniatura descartada.");
+            return ensureAssignmentThumbnail(entry);
+          }
+          entry.assignmentThumbnailUrl = url;
+          entry.assignmentThumbnailPromise = null;
+          return url;
+        }).catch((error) => {
+          entry.assignmentThumbnailPromise = null;
+          throw error;
+        });
+        return entry.assignmentThumbnailPromise;
+      }
+
+      async function createAssignmentThumbnail(blob) {
+        const image = await loadImage(blob);
+        const maxSide = 160;
+        const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+        const thumbnailBlob = await new Promise((resolve, reject) => {
+          canvas.toBlob((result) => result ? resolve(result) : reject(new Error("No se pudo crear la miniatura.")), "image/jpeg", 0.55);
+        });
+        return URL.createObjectURL(thumbnailBlob);
+      }
+
+      function clearAssignmentThumbnail(entry, dispose = false) {
+        if (entry.assignmentThumbnailUrl) URL.revokeObjectURL(entry.assignmentThumbnailUrl);
+        entry.assignmentThumbnailUrl = "";
+        entry.assignmentThumbnailPromise = null;
+        entry.assignmentThumbnailDisposed = dispose;
+      }
+
+      function openAssignmentPreview(index) {
+        const entry = zipState.entries[index];
+        if (!entry) return;
+        $("#assignment-preview-name").textContent = entry.name;
+        $("#assignment-preview-image").src = entry.url;
+        $("#assignment-preview-image").style.transform = `rotate(${entry.rotation}deg)`;
+        $("#assignment-drag-panel").classList.add("hidden");
+        $("#assignment-fields-panel").classList.add("hidden");
+        $("#assignment-preview-panel").classList.remove("hidden");
+      }
+
+      function closeAssignmentPreview() {
+        $("#assignment-preview-panel").classList.add("hidden");
+        $("#assignment-drag-panel").classList.remove("hidden");
+        $("#assignment-fields-panel").classList.remove("hidden");
       }
 
       function renderZipEditor() {
-        $("#zip-modal-count").textContent = `${zipState.entries.length} imagenes cargadas`;
+        $("#zip-modal-count").textContent = `${zipState.entries.length} imágenes cargadas`;
         $("#zip-modal-summary").textContent = zipSummary();
 
         const list = $("#zip-image-list");
-        list.innerHTML = zipState.entries.map((entry, index) => {
-          const changed = entry.replaced || entry.rotation !== 0;
-          return `
-            <article
-              class="zip-thumb rounded-md border border-zinc-200 bg-white p-2 shadow-sm"
-              draggable="true"
-              data-index="${index}"
-              data-name="${escapeHtml(entry.name)}"
-            >
-              <div class="flex h-28 items-center justify-center overflow-hidden rounded bg-zinc-100">
-                <img src="${entry.url}" alt="" class="max-h-full max-w-full object-contain" style="transform: rotate(${entry.rotation}deg)" />
-              </div>
-              <p class="mt-2 truncate text-xs font-semibold text-zinc-800">${escapeHtml(entry.name)}</p>
-              <p class="mt-1 text-xs ${changed ? "text-teal-700" : "text-zinc-500"}">${changed ? "Modificada" : "Original"}</p>
-              <div class="mt-2 grid grid-cols-2 gap-1">
-                <button class="rotate-image rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50" data-index="${index}" data-delta="-90" type="button">-90</button>
-                <button class="rotate-image rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50" data-index="${index}" data-delta="90" type="button">+90</button>
-                <button class="replace-image rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50" data-index="${index}" type="button">Cambiar</button>
-                <button class="reset-image rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50" data-index="${index}" type="button">Restaurar</button>
-              </div>
-            </article>
-          `;
-        }).join("");
+        list.innerHTML = zipState.entries.map((entry, index) => `
+          <article class="zip-compact-thumb ${index === zipState.selectedIndex ? "is-selected" : ""}" draggable="true" data-index="${index}" data-name="${escapeHtml(entry.name)}">
+            <button class="zip-select-image" data-select-image="${index}" type="button" title="Seleccionar ${escapeHtml(entry.name)}">
+              <img data-zip-thumb-image="${index}" src="${entry.assignmentThumbnailUrl || "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="}" alt="" style="transform: rotate(${entry.rotation}deg)" />
+            </button>
+            <strong class="zip-compact-name text-zinc-800" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</strong>
+          </article>
+        `).join("");
+        const hasSelection = Boolean(zipState.entries[zipState.selectedIndex]);
+        ["#selected-rotate-left", "#selected-rotate-right", "#selected-replace-image", "#selected-reset-image", "#remove-selected-image"].forEach((selector) => {
+          $(selector).disabled = !hasSelection;
+        });
+        if (!hasSelection) {
+          clearInspectorPreview();
+          $("#selected-image-name").textContent = "Agrega una imagen para comenzar";
+        }
 
-        document.querySelectorAll(".zip-thumb").forEach((card) => {
+        document.querySelectorAll("#zip-image-list article[data-name]").forEach((card) => {
           card.addEventListener("dragstart", (event) => {
             event.dataTransfer.setData("text/plain", card.dataset.name);
           });
         });
-        document.querySelectorAll(".rotate-image").forEach((button) => {
-          button.addEventListener("click", () => rotateImageAt(Number(button.dataset.index), Number(button.dataset.delta)));
+        document.querySelectorAll("[data-select-image]").forEach((button) => {
+          button.addEventListener("click", () => inspectImageAt(Number(button.dataset.selectImage)));
         });
-        document.querySelectorAll(".replace-image").forEach((button) => {
-          button.addEventListener("click", () => {
-            zipState.replacingIndex = Number(button.dataset.index);
-            $("#replace-image-input").click();
-          });
-        });
-        document.querySelectorAll(".reset-image").forEach((button) => {
-          button.addEventListener("click", () => resetImageAt(Number(button.dataset.index)));
-        });
-
         renderImageFields();
+        if (hasSelection) inspectImageAt(zipState.selectedIndex);
+        loadAssignmentThumbnails();
+        refreshIcons();
       }
 
+      async function inspectImageAt(index) {
+        const entry = zipState.entries[index];
+        if (!entry) return;
+        zipState.selectedIndex = index;
+        document.querySelectorAll("[data-select-image]").forEach((button) => {
+          button.closest(".zip-compact-thumb")?.classList.toggle("is-selected", Number(button.dataset.selectImage) === index);
+        });
+        $("#selected-image-name").textContent = entry.name;
+        resetRegionOcr();
+        await renderInspectorPreview(entry, index);
+      }
+
+      async function renderInspectorPreview(entry, index) {
+        const requestId = ++zipState.inspectorPreviewRequest;
+        let previewUrl = entry.url;
+        let ownsPreviewUrl = false;
+        let previewBlob = entry.blob;
+        if (entry.rotation) {
+          const rotatedBlob = await rotateImageBlob(entry.blob, entry.rotation);
+          previewBlob = rotatedBlob;
+          previewUrl = URL.createObjectURL(rotatedBlob);
+          ownsPreviewUrl = true;
+        }
+        if (requestId !== zipState.inspectorPreviewRequest || zipState.entries[index] !== entry) {
+          if (ownsPreviewUrl) URL.revokeObjectURL(previewUrl);
+          return;
+        }
+        if (zipState.inspectorPreviewUrl) URL.revokeObjectURL(zipState.inspectorPreviewUrl);
+        zipState.inspectorPreviewUrl = ownsPreviewUrl ? previewUrl : "";
+        zipState.inspectorPreviewBlob = previewBlob;
+        $("#selected-image-preview").src = previewUrl;
+        $("#selected-image-preview").style.transform = "";
+      }
+
+      function clearInspectorPreview() {
+        zipState.inspectorPreviewRequest += 1;
+        if (zipState.inspectorPreviewUrl) URL.revokeObjectURL(zipState.inspectorPreviewUrl);
+        zipState.inspectorPreviewUrl = "";
+        zipState.inspectorPreviewBlob = null;
+        $("#selected-image-preview").removeAttribute("src");
+      }
+
+      function activateRegionOcr() {
+        if (!zipState.inspectorPreviewBlob) return;
+        zipState.ocrActive = true;
+        zipState.ocrSelection = null;
+        const layer = $("#ocr-region-layer");
+        layer.classList.remove("hidden");
+        layer.classList.add("is-active");
+        $("#ocr-region-box").classList.add("hidden");
+        $("#activate-region-ocr").classList.add("hidden");
+        $("#run-region-ocr").classList.remove("hidden");
+        $("#run-region-ocr").disabled = true;
+        $("#cancel-region-ocr").classList.remove("hidden");
+        $("#ocr-region-help").classList.remove("hidden");
+      }
+
+      function resetRegionOcr() {
+        zipState.ocrActive = false;
+        zipState.ocrSelection = null;
+        zipState.ocrDragStart = null;
+        $("#ocr-region-layer").classList.add("hidden");
+        $("#ocr-region-layer").classList.remove("is-active");
+        $("#ocr-region-box").classList.add("hidden");
+        $("#activate-region-ocr").classList.remove("hidden");
+        $("#run-region-ocr").classList.add("hidden");
+        $("#run-region-ocr").disabled = true;
+        $("#cancel-region-ocr").classList.add("hidden");
+        $("#ocr-region-help").classList.add("hidden");
+        $("#ocr-region-result").classList.add("hidden");
+      }
+
+      function ocrPoint(event) {
+        const rect = $("#ocr-region-layer").getBoundingClientRect();
+        return {
+          x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
+          y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))
+        };
+      }
+
+      function startOcrSelection(event) {
+        if (!zipState.ocrActive) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        zipState.ocrDragStart = ocrPoint(event);
+        zipState.ocrSelection = { x: zipState.ocrDragStart.x, y: zipState.ocrDragStart.y, width: 0, height: 0 };
+        renderOcrSelection();
+      }
+
+      function moveOcrSelection(event) {
+        if (!zipState.ocrDragStart) return;
+        const point = ocrPoint(event);
+        zipState.ocrSelection = {
+          x: Math.min(zipState.ocrDragStart.x, point.x),
+          y: Math.min(zipState.ocrDragStart.y, point.y),
+          width: Math.abs(point.x - zipState.ocrDragStart.x),
+          height: Math.abs(point.y - zipState.ocrDragStart.y)
+        };
+        renderOcrSelection();
+      }
+
+      function finishOcrSelection(event) {
+        if (!zipState.ocrDragStart) return;
+        moveOcrSelection(event);
+        zipState.ocrDragStart = null;
+        const valid = zipState.ocrSelection.width >= 0.015 && zipState.ocrSelection.height >= 0.015;
+        if (!valid) zipState.ocrSelection = null;
+        $("#run-region-ocr").disabled = !valid;
+        renderOcrSelection();
+      }
+
+      function renderOcrSelection() {
+        const box = $("#ocr-region-box");
+        const selection = zipState.ocrSelection;
+        if (!selection) {
+          box.classList.add("hidden");
+          return;
+        }
+        box.classList.remove("hidden");
+        box.style.left = `${selection.x * 100}%`;
+        box.style.top = `${selection.y * 100}%`;
+        box.style.width = `${selection.width * 100}%`;
+        box.style.height = `${selection.height * 100}%`;
+      }
+
+      async function runRegionOcr() {
+        const selection = zipState.ocrSelection;
+        const sourceBlob = zipState.inspectorPreviewBlob;
+        if (!selection || !sourceBlob) return;
+        showLoading("Analizando únicamente la zona seleccionada...", "Reconociendo texto");
+        try {
+          const image = await loadImage(sourceBlob);
+          const sx = Math.max(0, Math.floor(selection.x * image.naturalWidth));
+          const sy = Math.max(0, Math.floor(selection.y * image.naturalHeight));
+          const sw = Math.max(1, Math.ceil(selection.width * image.naturalWidth));
+          const sh = Math.max(1, Math.ceil(selection.height * image.naturalHeight));
+          const canvas = document.createElement("canvas");
+          canvas.width = sw;
+          canvas.height = sh;
+          canvas.getContext("2d").drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
+          const crop = await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("No se pudo recortar la imagen.")), "image/png"));
+          const form = new FormData();
+          form.append("image", crop, "region.png");
+          const response = await fetch("/api/ocr/region", { method: "POST", body: form });
+          const payload = await response.json().catch(() => ({}));
+          if (response.status === 404) throw new Error("El servidor del puerto 8000 todavía usa el backend anterior. Reinicia EVG_JSON y vuelve a intentarlo.");
+          if (!response.ok) throw new Error(payload.detail || "No fue posible reconocer el texto.");
+          $("#ocr-region-text").value = payload.text || "";
+          $("#ocr-region-confidence").textContent = payload.confidence == null ? "Texto reconocido" : `Texto reconocido · confianza ${Math.round(payload.confidence * 100)}%`;
+          $("#ocr-region-result").classList.remove("hidden");
+        } catch (error) {
+          alert(error.message || "No fue posible ejecutar el OCR.");
+        } finally {
+          hideLoading();
+        }
+      }
+
+      async function copyRegionOcr() {
+        await navigator.clipboard.writeText($("#ocr-region-text").value);
+        $("#copy-region-ocr").textContent = "Copiado";
+        setTimeout(() => { $("#copy-region-ocr").textContent = "Copiar"; }, 1200);
+      }
       function rotateImageAt(index, delta) {
         const entry = zipState.entries[index];
         if (!entry) return;
@@ -1419,6 +2605,7 @@
         if (!entry) return;
 
         URL.revokeObjectURL(entry.url);
+        clearAssignmentThumbnail(entry);
         entry.blob = entry.originalBlob;
         entry.url = URL.createObjectURL(entry.originalBlob);
         entry.rotation = 0;
@@ -1426,26 +2613,101 @@
         renderZipEditor();
       }
 
-      async function replaceSelectedImage(event) {
-        const file = event.target.files[0];
-        event.target.value = "";
-        if (!file) return;
+      function replaceCurrentImage() {
+        if (!zipState.entries[zipState.selectedIndex]) return;
+        zipState.replacingIndex = zipState.selectedIndex;
+        $("#replace-image-input").click();
+      }
 
-        if (!file.type.startsWith("image/")) {
+      async function addImagesToInspector(event) {
+        const selectedFiles = Array.from(event.target.files || []);
+        event.target.value = "";
+        if (!selectedFiles.length) return;
+        const invalid = selectedFiles.filter((file) => !isImageFile(file));
+        if (invalid.length) {
+          showStatus("Selecciona únicamente imágenes compatibles.", "error");
+          return;
+        }
+        showLoading("Cargando imágenes...", "");
+        try {
+          for (const selectedFile of selectedFiles) {
+            const file = await copyFileToMemory(selectedFile);
+            zipState.entries.push(imageEntry(uniqueInspectorImageName(file.name), file));
+          }
+          zipState.structureChanged = true;
+          zipState.selectedIndex = zipState.entries.length - selectedFiles.length;
+          renderZipEditor();
+          renderImageAssignment();
+          updateInformeReadiness();
+          showStatus(`${selectedFiles.length} imagen(es) agregada(s).`, "success");
+        } catch (error) {
+          showStatus("No pude leer una de las imágenes seleccionadas.", "error");
+        } finally {
+          hideLoading();
+        }
+      }
+
+      function uniqueInspectorImageName(name) {
+        const existing = new Set(zipState.entries.map((entry) => entry.name.toLowerCase()));
+        if (!existing.has(name.toLowerCase())) return name;
+        const dot = name.lastIndexOf(".");
+        const base = dot > 0 ? name.slice(0, dot) : name;
+        const extension = dot > 0 ? name.slice(dot) : "";
+        let counter = 2;
+        let candidate = `${base}_${counter}${extension}`;
+        while (existing.has(candidate.toLowerCase())) {
+          counter += 1;
+          candidate = `${base}_${counter}${extension}`;
+        }
+        return candidate;
+      }
+
+      function removeSelectedImage() {
+        const index = zipState.selectedIndex;
+        const entry = zipState.entries[index];
+        if (!entry) return;
+        URL.revokeObjectURL(entry.url);
+        clearAssignmentThumbnail(entry, true);
+        informeState.placeholders.img.forEach((key) => {
+          if (firstImageValue(informeState.payload[key]) === entry.name) informeState.payload[key] = [];
+        });
+        zipState.entries.splice(index, 1);
+        zipState.structureChanged = true;
+        zipState.selectedIndex = Math.min(index, zipState.entries.length - 1);
+        renderZipEditor();
+        renderImageAssignment();
+        syncJsonTextarea();
+        updateInformeReadiness();
+        showStatus(`Imagen retirada: ${entry.name}`, "success");
+      }
+
+      async function replaceSelectedImage(event) {
+        const selectedFile = event.target.files[0];
+        if (!selectedFile) return;
+
+        if (!selectedFile.type.startsWith("image/")) {
+          event.target.value = "";
           showStatus("Selecciona un archivo de imagen.", "error");
           return;
         }
 
-        const entry = zipState.entries[zipState.replacingIndex];
-        zipState.replacingIndex = -1;
-        if (!entry) return;
+        try {
+          const file = await copyFileToMemory(selectedFile);
+          event.target.value = "";
+          const entry = zipState.entries[zipState.replacingIndex];
+          zipState.replacingIndex = -1;
+          if (!entry) return;
 
-        URL.revokeObjectURL(entry.url);
-        entry.blob = file;
-        entry.url = URL.createObjectURL(file);
-        entry.rotation = 0;
-        entry.replaced = true;
-        renderZipEditor();
+          URL.revokeObjectURL(entry.url);
+          clearAssignmentThumbnail(entry);
+          entry.blob = file;
+          entry.url = URL.createObjectURL(file);
+          entry.rotation = 0;
+          entry.replaced = true;
+          renderZipEditor();
+        } catch (error) {
+          showStatus("No pude leer la imagen. Vuelve a seleccionarla desde una carpeta local con permisos de lectura.", "error");
+        }
       }
 
       function openJsonModal(kind = "informe") {
@@ -1485,16 +2747,20 @@
           closeJsonModal();
           showStatus("JSON aplicado al formulario.", "success");
         } catch (error) {
-          showStatus(`JSON invalido: ${error.message}`, "error");
+          showStatus(`JSON inválido: ${error.message}`, "error");
         }
       }
 
       async function loadAdvancedJsonFile(event) {
         const file = event.target.files[0];
-        event.target.value = "";
         if (!file) return;
-        $("#advanced-json").value = await file.text();
-        applyJsonFromModal();
+        try {
+          $("#advanced-json").value = await file.text();
+          event.target.value = "";
+          applyJsonFromModal();
+        } catch (error) {
+          showStatus("No pude leer el archivo JSON. Vuelve a seleccionarlo desde una carpeta local con permisos de lectura.", "error");
+        }
       }
 
       async function copyJsonFromModal() {
@@ -1514,6 +2780,8 @@
         const missing = missingTextFields(cadenaState);
         showMissingWarning(missing, "#cadena-missing-warning", "La cadena de custodia");
         generationResult.classList.add("hidden");
+        $("#download-cadena").classList.add("hidden");
+        setCurrentStep("cadena", 4);
         showStatus("Procesando cadena de custodia...", "info");
         showLoading("Generando Word. Espera un momento...");
 
@@ -1544,7 +2812,7 @@
             hash: response.headers.get("x-document-hash") || "",
             missing: missingFromHeader(response) || missing
           };
-          showGenerationResult(blob, fileName, result);
+          showGenerationResult(blob, fileName, result, "cadena");
           loadHistory();
         } catch (error) {
           showStatus(error.message, "error");
@@ -1559,8 +2827,14 @@
         syncJsonFromImageFields();
 
         const missing = missingFields();
+        if (missing.txt.length || missing.img.length) {
+          showMissingWarning(missing, "#missing-warning", "El informe");
+          showStatus("Se generará un informe parcial con los datos disponibles.", "info");
+        }
         showMissingWarning(missing, "#missing-warning", "El informe");
         generationResult.classList.add("hidden");
+        $("#download-informe").classList.add("hidden");
+        setCurrentStep("informe", 4);
         showStatus("Procesando informe...", "info");
         showLoading("Generando Word. Espera un momento...");
 
@@ -1598,7 +2872,7 @@
             hash: response.headers.get("x-document-hash") || "",
             missing: missingFromHeader(response) || missing
           };
-          showGenerationResult(blob, fileName, result);
+          showGenerationResult(blob, fileName, result, "informe");
           loadHistory();
         } catch (error) {
           showStatus(error.message, "error");
@@ -1615,6 +2889,20 @@
           }
         });
         return missing;
+      }
+
+      function updateInformeReadiness() {
+        const analyzed = informeState.placeholders.txt.length > 0 || informeState.placeholders.img.length > 0;
+        const missing = analyzed ? missingFields() : { txt: ["plantilla"], img: [] };
+        const ready = analyzed && missing.txt.length === 0 && missing.img.length === 0;
+        [$("#open-json-modal"), $("#generate-informe")].filter(Boolean).forEach((control) => {
+          control.disabled = false;
+          control.removeAttribute("aria-disabled");
+          control.title = "";
+        });
+        const status = $("#informe-flow-status");
+        if (status && ready && status.textContent.startsWith("Paso 4")) status.textContent = "Paso 4 de 4 - Listo para generar";
+        return ready;
       }
 
       function missingTextFields(state) {
@@ -1690,9 +2978,9 @@
 
       async function zipFileForSubmit() {
         if (!zipState.entries.length) return null;
-        if (!hasZipChanges()) return zipState.originalFile;
+        if (zipState.originalFile && !hasZipChanges()) return zipState.originalFile;
 
-        showLoading("Preparando ZIP editado...");
+        showLoading("Preparando ZIP y/o Imágenes...");
         const editedZip = new JSZip();
 
         for (const entry of zipState.entries) {
@@ -1705,17 +2993,26 @@
       }
 
       function hasZipChanges() {
-        return zipState.entries.some((entry) => entry.replaced || entry.rotation !== 0);
+        return zipState.structureChanged || zipState.entries.some((entry) => entry.replaced || entry.rotation !== 0);
       }
 
       function clearZipState() {
-        zipState.entries.forEach((entry) => URL.revokeObjectURL(entry.url));
+        zipState.entries.forEach((entry) => {
+          URL.revokeObjectURL(entry.url);
+          clearAssignmentThumbnail(entry, true);
+        });
         zipState.originalFile = null;
         zipState.entries = [];
         zipState.selectedIndex = -1;
         zipState.replacingIndex = -1;
+        zipState.structureChanged = false;
+        zipState.returnToFieldsModal = false;
+        clearInspectorPreview();
         $("#open-zip-editor").disabled = true;
+        $("#open-image-assignment").disabled = true;
+        updateInformeReadiness();
         closeZipEditor();
+        closeImageAssignment();
       }
 
       async function rotateImageBlob(blob, rotation) {
@@ -1736,7 +3033,7 @@
         return await new Promise((resolve, reject) => {
           canvas.toBlob((result) => {
             if (result) resolve(result);
-            else reject(new Error("No pude girar una imagen del ZIP."));
+            else reject(new Error("No pude girar una imagen del ZIP y/o Imágenes."));
           }, "image/jpeg", 0.9);
         });
       }
@@ -1751,7 +3048,7 @@
           };
           image.onerror = () => {
             URL.revokeObjectURL(url);
-            reject(new Error("No pude leer una imagen del ZIP."));
+            reject(new Error("No pude leer una imagen del ZIP y/o Imágenes."));
           };
           image.src = url;
         });
@@ -1759,7 +3056,7 @@
 
       function zipSummary() {
         const changed = zipState.entries.filter((entry) => entry.replaced || entry.rotation !== 0).length;
-        return changed ? `${changed} imagenes modificadas` : "Sin cambios pendientes";
+        return changed ? `${changed} imágenes modificadas` : "Sin cambios pendientes";
       }
 
       function normalizeRotation(value) {
@@ -1778,7 +3075,9 @@
         return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
       }
 
-      function showLoading(message) {
+      function showLoading(message, title = "Generando Word") {
+        $("#loading-title").textContent = title;
+        $("#loading-title").classList.toggle("hidden", !title);
         loadingMessage.textContent = message;
         loadingModal.classList.remove("hidden");
         loadingModal.classList.add("flex");
@@ -1808,9 +3107,173 @@
         URL.revokeObjectURL(url);
       }
 
-      function showGenerationResult(blob, fileName, result) {
+      function normalizeRouteBasePath(value) {
+        const path = String(value || "").trim().replace(/\//g, "\\");
+        return path.endsWith("\\") ? path : `${path}\\`;
+      }
+
+      function safeWindowsFolderPart(value) {
+        return String(value || "")
+          .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+          .replace(/[. ]+$/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function addRouteEntry(event) {
+        event.preventDefault();
+        const basePath = normalizeRouteBasePath($("#route-base-path").value);
+        const caseNumber = safeWindowsFolderPart($("#route-case-number").value);
+        const year = Number($("#route-year").value);
+        const address = safeWindowsFolderPart($("#route-address").value);
+        const status = document.querySelector('input[name="route-status"]:checked')?.value || "positivo";
+        if (!basePath || !caseNumber || !address || year < 2000 || year > 2100) {
+          showStatus("Completa correctamente la ruta, carpeta, año y domicilio.", "error");
+          return;
+        }
+        const folderName = `C.I. ${caseNumber}-${year} - ${address}`;
+        const duplicate = routeState.entries.some((entry) => entry.basePath.toLowerCase() === basePath.toLowerCase() && entry.folderName.toLowerCase() === folderName.toLowerCase());
+        if (duplicate) {
+          showStatus("Esa carpeta ya está incluida en la lista.", "error");
+          return;
+        }
+        routeState.entries.push({
+          id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+          basePath,
+          caseNumber,
+          year,
+          address,
+          status,
+          folderName,
+          subfolders: status === "positivo" ? ["Fotos", "Videos", "Videos\\ISO", "Videos\\Originales"] : ["Fotos"]
+        });
+        $("#route-case-number").value = "";
+        $("#route-address").value = "";
+        renderRouteList();
+        showStatus("Carpeta añadida a la lista.", "success");
+      }
+
+      function renderRouteList() {
+        const list = $("#route-list");
+        const empty = routeState.entries.length === 0;
+        $("#route-list-count").textContent = `${routeState.entries.length} ${routeState.entries.length === 1 ? "carpeta" : "carpetas"} en la lista`;
+        $("#clear-route-list").disabled = empty;
+        $("#generate-routes-powershell").disabled = empty;
+        $("#generate-routes-json").disabled = empty;
+        if (empty) {
+          list.innerHTML = '<div id="route-list-empty" class="flex min-h-56 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-200 text-center text-slate-500"><i data-lucide="folder-plus" class="h-10 w-10"></i><p class="mt-3 font-semibold">Todavía no hay carpetas</p><p class="mt-1 text-sm">Completa el formulario y añádelas a esta lista.</p></div>';
+          refreshIcons();
+          return;
+        }
+        const rows = routeState.entries.map((entry, index) => {
+          const positive = entry.status === "positivo";
+          const badge = positive ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-red-300 bg-red-50 text-red-800";
+          return `<article class="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-slate-100 px-2 py-2 text-xs hover:bg-slate-50">
+            <span class="font-bold text-slate-400">${index + 1}</span>
+            <div class="min-w-0">
+              <div class="flex min-w-0 items-center gap-2"><span class="shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none ${badge}">${escapeHtml(entry.status)}</span><strong class="truncate text-xs text-slate-900" title="${escapeHtml(entry.folderName)}">${escapeHtml(entry.folderName)}</strong></div>
+              <div class="mt-1 flex min-w-0 gap-3 text-[10px] leading-tight text-slate-500"><span class="truncate font-mono" title="${escapeHtml(entry.basePath)}">${escapeHtml(entry.basePath)}</span><span class="shrink-0">${entry.subfolders.map(escapeHtml).join(" · ")}</span></div>
+            </div>
+            <button data-remove-route="${escapeHtml(entry.id)}" class="shrink-0 rounded border border-red-200 p-1.5 text-red-700 hover:bg-red-50" type="button" title="Quitar de la lista" aria-label="Quitar de la lista"><i data-lucide="trash-2"></i></button>
+          </article>`;
+        }).join("");
+        list.innerHTML = `<div class="sticky top-0 z-10 grid grid-cols-[2rem_minmax(0,1fr)_auto] gap-2 border-b border-slate-200 bg-slate-100 px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500"><span>#</span><span>Carpeta, ruta y estructura</span><span>Quitar</span></div>${rows}`;
+        list.querySelectorAll("[data-remove-route]").forEach((button) => button.addEventListener("click", () => {
+          routeState.entries = routeState.entries.filter((entry) => entry.id !== button.dataset.removeRoute);
+          renderRouteList();
+        }));
+        refreshIcons();
+      }
+
+      function clearRouteEntries() {
+        if (!routeState.entries.length || !confirm("¿Quitar todas las carpetas de la lista?")) return;
+        routeState.entries = [];
+        renderRouteList();
+      }
+
+      function routeJsonPayload() {
+        return {
+          version: 1,
+          generated_at: new Date().toISOString(),
+          total: routeState.entries.length,
+          routes: routeState.entries.map(({ id, ...entry }) => ({
+            ...entry,
+            fullPath: `${entry.basePath}${entry.folderName}`
+          }))
+        };
+      }
+
+      function powerShellLiteral(value) {
+        return `'${String(value).replace(/'/g, "''")}'`;
+      }
+
+      function buildRoutesPowerShell() {
+        const lines = [
+          "# Generado por EVG_JSON - Rutas",
+          "$ErrorActionPreference = 'Stop'",
+          ""
+        ];
+        routeState.entries.forEach((entry, index) => {
+          lines.push(`# ${index + 1}. ${entry.folderName} [${entry.status.toUpperCase()}]`);
+          lines.push(`$root${index + 1} = Join-Path ${powerShellLiteral(entry.basePath)} ${powerShellLiteral(entry.folderName)}`);
+          lines.push(`[void][System.IO.Directory]::CreateDirectory($root${index + 1})`);
+          lines.push(`[void][System.IO.Directory]::CreateDirectory((Join-Path $root${index + 1} 'Fotos'))`);
+          if (entry.status === "positivo") {
+            lines.push(`$videos${index + 1} = Join-Path $root${index + 1} 'Videos'`);
+            lines.push(`[void][System.IO.Directory]::CreateDirectory($videos${index + 1})`);
+            lines.push(`[void][System.IO.Directory]::CreateDirectory((Join-Path $videos${index + 1} 'ISO'))`);
+            lines.push(`[void][System.IO.Directory]::CreateDirectory((Join-Path $videos${index + 1} 'Originales'))`);
+          }
+          lines.push("");
+        });
+        lines.push("Write-Host 'Estructura de carpetas creada correctamente.' -ForegroundColor Green");
+        return lines.join("\r\n");
+      }
+
+      function openRoutesOutput(title, subtitle, text, fileName, mimeType) {
+        routeState.outputText = text;
+        routeState.outputFileName = fileName;
+        routeState.outputMimeType = mimeType;
+        $("#routes-output-title").textContent = title;
+        $("#routes-output-subtitle").textContent = subtitle;
+        $("#routes-output-text").value = text;
+        $("#routes-output-modal").classList.remove("hidden");
+        $("#routes-output-modal").classList.add("flex");
+      }
+
+      function showRoutesPowerShell() {
+        if (!routeState.entries.length) return;
+        openRoutesOutput("PowerShell para crear carpetas", "Revísalo, cópialo o descarga el archivo .ps1.", buildRoutesPowerShell(), "crear_rutas.ps1", "text/plain;charset=utf-8");
+      }
+
+      function showRoutesJson() {
+        if (!routeState.entries.length) return;
+        openRoutesOutput("JSON de rutas", "Vista previa del conjunto completo de carpetas.", JSON.stringify(routeJsonPayload(), null, 2), "rutas.json", "application/json;charset=utf-8");
+      }
+
+      function closeRoutesOutput() {
+        $("#routes-output-modal").classList.add("hidden");
+        $("#routes-output-modal").classList.remove("flex");
+      }
+
+      async function copyRoutesOutput() {
+        await navigator.clipboard.writeText(routeState.outputText);
+        showStatus("Contenido copiado.", "success");
+      }
+
+      function downloadRoutesOutput() {
+        const bom = routeState.outputFileName.endsWith(".ps1") ? "\ufeff" : "";
+        downloadBlob(new Blob([bom, routeState.outputText], { type: routeState.outputMimeType }), routeState.outputFileName);
+      }
+
+      function showGenerationResult(blob, fileName, result, kind) {
         if (currentResultUrl) URL.revokeObjectURL(currentResultUrl);
         currentResultUrl = URL.createObjectURL(blob);
+        const downloadButton = $(`#download-${kind}`);
+        $(`#download-${kind === "cadena" ? "informe" : "cadena"}`).classList.add("hidden");
+        downloadButton.href = currentResultUrl;
+        downloadButton.download = fileName;
+        downloadButton.classList.remove("hidden");
         const missingParts = [];
         if (result.missing.txt && result.missing.txt.length) {
           missingParts.push(`<div><strong>Datos faltantes:</strong> ${result.missing.txt.map(escapeHtml).join(", ")}</div>`);
@@ -1820,15 +3283,12 @@
         }
 
         generationResult.innerHTML = `
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
             <div>
               <div><strong>Estado:</strong> ${escapeHtml(result.status || "")}</div>
               <div class="mt-1"><strong>Hash:</strong> ${escapeHtml(result.hash || "")}</div>
               ${missingParts.length ? `<div class="mt-2">${missingParts.join("")}</div>` : `<div class="mt-2">Sin faltantes detectados.</div>`}
             </div>
-            <a class="inline-flex items-center justify-center rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800" href="${currentResultUrl}" download="${escapeHtml(fileName)}">
-              Descargar Word
-            </a>
           </div>
         `;
         generationResult.classList.remove("hidden");
@@ -1847,20 +3307,27 @@
 
       async function loadHistory() {
         const body = $("#history-body");
-        body.innerHTML = `<tr><td class="py-4 pr-4 text-zinc-500" colspan="6">Cargando...</td></tr>`;
+        body.innerHTML = `<tr><td class="py-4 pr-4 text-zinc-500" colspan="8">Cargando...</td></tr>`;
+        historyState.items = [];
+        $("#select-all-history").checked = false;
+        updateHistoryDeleteControls();
 
         try {
           const response = await fetch("/api/historial");
           redirectIfUnauthorized(response);
           const items = await response.json();
+          if (!response.ok) throw new Error(items.detail || "No se pudo cargar el historial.");
+          historyState.items = items;
 
           if (!items.length) {
-            body.innerHTML = `<tr><td class="py-4 pr-4 text-zinc-500" colspan="6">Sin documentos generados</td></tr>`;
+            body.innerHTML = `<tr><td class="py-4 pr-4 text-zinc-500" colspan="8">Sin documentos generados</td></tr>`;
+            updateHistoryDeleteControls();
             return;
           }
 
           body.innerHTML = items.map((item) => `
             <tr>
+              <td class="py-3 pr-3"><input data-history-select="${escapeHtml(item.id)}" type="checkbox" class="history-select h-4 w-4 rounded border-zinc-300" aria-label="Seleccionar registro" /></td>
               <td class="py-3 pr-4 text-zinc-700">${formatDate(item.created_at)}</td>
               <td class="py-3 pr-4 capitalize">${item.kind}</td>
               <td class="py-3 pr-4 text-zinc-700">
@@ -1876,10 +3343,70 @@
                   <a class="rounded-md border border-zinc-300 px-3 py-2 text-xs font-semibold hover:bg-zinc-50" href="${item.json_url}">JSON</a>
                 </div>
               </td>
+              <td class="py-3"><button data-delete-history="${escapeHtml(item.id)}" class="rounded-md border border-red-300 p-2 text-red-700 hover:bg-red-50" type="button" title="Borrar registro y su carpeta" aria-label="Borrar registro y su carpeta"><i data-lucide="trash-2"></i></button></td>
             </tr>
           `).join("");
+          body.querySelectorAll(".history-select").forEach((checkbox) => checkbox.addEventListener("change", updateHistoryDeleteControls));
+          body.querySelectorAll("[data-delete-history]").forEach((button) => button.addEventListener("click", () => deleteHistoryRecords([button.dataset.deleteHistory], "este registro")));
+          updateHistoryDeleteControls();
+          refreshIcons();
         } catch (error) {
-          body.innerHTML = `<tr><td class="py-4 pr-4 text-red-700" colspan="6">${escapeHtml(error.message)}</td></tr>`;
+          body.innerHTML = `<tr><td class="py-4 pr-4 text-red-700" colspan="8">${escapeHtml(error.message)}</td></tr>`;
+        }
+      }
+
+      function selectedHistoryIds() {
+        return Array.from(document.querySelectorAll(".history-select:checked"), (checkbox) => checkbox.dataset.historySelect);
+      }
+
+      function toggleAllHistory(event) {
+        document.querySelectorAll(".history-select").forEach((checkbox) => { checkbox.checked = event.target.checked; });
+        updateHistoryDeleteControls();
+      }
+
+      function updateHistoryDeleteControls() {
+        const total = historyState.items.length;
+        const selected = selectedHistoryIds().length;
+        $("#delete-selected-history").disabled = selected === 0;
+        $("#delete-selected-history").textContent = selected ? `Borrar seleccionados (${selected})` : "Borrar seleccionados";
+        $("#delete-all-history").disabled = total === 0;
+        $("#select-all-history").disabled = total === 0;
+        $("#select-all-history").checked = total > 0 && selected === total;
+        $("#select-all-history").indeterminate = selected > 0 && selected < total;
+      }
+
+      function deleteSelectedHistory() {
+        const ids = selectedHistoryIds();
+        if (ids.length) deleteHistoryRecords(ids, `${ids.length} registros seleccionados`);
+      }
+
+      function deleteAllHistory() {
+        const ids = historyState.items.map((item) => item.id);
+        if (ids.length) deleteHistoryRecords(ids, `todos los ${ids.length} registros`);
+      }
+
+      async function deleteHistoryRecords(ids, description) {
+        if (!confirm(`¿Borrar ${description}? También se eliminarán definitivamente sus carpetas y archivos del proyecto.`)) return;
+        showLoading(`Eliminando ${ids.length} ${ids.length === 1 ? "registro" : "registros"}...`, "Limpiando historial");
+        try {
+          for (const id of ids) {
+            const response = await fetch(`/api/historial/${encodeURIComponent(id)}`, { method: "DELETE" });
+            redirectIfUnauthorized(response);
+            if (!response.ok) {
+              const error = await response.json().catch(() => ({}));
+              if (response.status === 404 && error.detail === "Not Found") {
+                throw new Error("El servidor activo todavía no incluye el borrado de historial. Reinicia EVG_JSON con el script administrativo actualizado.");
+              }
+              throw new Error(error.detail || `No se pudo borrar el registro ${id}.`);
+            }
+          }
+          showStatus(ids.length === 1 ? "Registro y carpeta eliminados." : `${ids.length} registros y sus carpetas fueron eliminados.`, "success");
+          await loadHistory();
+        } catch (error) {
+          showStatus(error.message, "error");
+          await loadHistory();
+        } finally {
+          hideLoading();
         }
       }
 
@@ -1898,7 +3425,7 @@
       function redirectIfUnauthorized(response) {
         if (response.status === 401) {
           window.location.href = "/login";
-          throw new Error("Sesion expirada.");
+          throw new Error("Sesión expirada.");
         }
       }
 

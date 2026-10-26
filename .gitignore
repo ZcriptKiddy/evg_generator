@@ -1,24 +1,34 @@
-.env
+# Entorno y cachés de Python
 .venv/
-venv/
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+*.py[cod]
 
-outputs/
-work_dir/
-temp/
-tmp/
-/work/
+# Configuración y credenciales locales
+.env
+.env.*
+!.env.example
+credenciales.txt
+credentials*.json
+service-account*.json
+client_secret*.json
+token.json
 
-data/history/*
-data/work/*
-data/*.log
+# Datos generados o privados
+backups/
+data/history/
+data/work/
+data/models/
+outputs/*
+!outputs/.gitkeep
+logs/*
+!logs/.gitkeep
 *.log
-!data/history/.gitkeep
-!data/work/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
 
+# Archivos locales de herramientas
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db

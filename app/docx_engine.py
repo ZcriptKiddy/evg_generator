@@ -64,12 +64,15 @@ def render_docx(
     output_path: Path,
     work_dir: Path,
     images_zip_path: Path | None = None,
+    images_dir_path: Path | None = None,
 ) -> RenderStats:
     if not template_path.exists():
         raise TemplateMissingError(f"Falta la plantilla: {template_path.name}")
 
     extracted_dir = work_dir / "imagenes_extraidas"
     image_index = _extract_zip_images(images_zip_path, extracted_dir) if images_zip_path else {}
+    if images_dir_path:
+        image_index.update(_index_image_files(images_dir_path))
     text_values = _text_context(payload)
     image_values = _image_context(payload, image_index)
 
@@ -204,6 +207,21 @@ def _extract_zip_images(zip_path: Path, target_dir: Path) -> dict[str, Path]:
 
             image_index[target_path.name.lower()] = target_path
             image_index[target_path.stem.lower()] = target_path
+
+    return image_index
+
+
+def _index_image_files(images_dir: Path) -> dict[str, Path]:
+    image_index: dict[str, Path] = {}
+    if not images_dir.exists():
+        return image_index
+
+    for path in images_dir.iterdir():
+        if not path.is_file() or path.suffix.lower() not in IMAGE_EXTENSIONS:
+            continue
+
+        image_index[path.name.lower()] = path
+        image_index[path.stem.lower()] = path
 
     return image_index
 

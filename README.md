@@ -1,115 +1,61 @@
-# Generador DOCX pericial
+# EVG_JSON
 
-Aplicacion web local para Windows que genera documentos Word a partir de plantillas `.docx`.
+Aplicación web local para generar archivos JSON de entrada, informes periciales, cadenas de custodia y aportaciones a partir de plantillas DOCX.
 
-El sistema trabaja con dos flujos principales:
-
-- **Cadena de Custodia**: genera documentos de cadena usando solo campos de texto `{{Txt_...}}`. No usa imagenes ni ZIP.
-- **Informe Pericial**: genera informes usando campos de texto `{{Txt_...}}` e imagenes `{{Img_...}}` tomadas de un archivo ZIP.
-
-La aplicacion corre localmente con FastAPI en:
-
-```text
-http://127.0.0.1:8000
-```
-
-## Funciones principales
-
-- Usa plantillas Word `.docx` ubicadas en `templates/`.
-- Carga por default `Plantilla_Cadena.docx` y `Plantilla_Informe.docx`.
-- Permite subir otra plantilla `.docx` desde la interfaz.
-- Detecta automaticamente placeholders `{{Txt_...}}` y `{{Img_...}}`.
-- Construye formularios dinamicos desde los campos detectados.
-- Permite textos normales, textos enriquecidos, fechas, horas y horarios libres.
-- Mantiene un JSON interno sincronizado en segundo plano.
-- Permite ver, copiar, descargar, cargar y editar el JSON desde un modal avanzado.
-- Genera documentos incompletos como `parcial_<hash>.docx`.
-- Genera documentos completos como `completo_<hash>.docx`.
-- Guarda historial local de documentos generados.
-
-## Plantillas incluidas
-
-```text
-templates/Plantilla_Cadena.docx
-templates/Plantilla_Informe.docx
-```
-
-Ejemplos de placeholders:
-
-```text
-{{Txt_No_Carpeta}}
-{{Txt_Fecha_Actual}}
-{{Txt_Hora_Inicial}}
-{{Img_Arribo_Domicilio}}
-```
-
-Los placeholders pueden estar en parrafos, tablas, encabezados y pies de pagina.
+Usa FastAPI y PaddleOCR. El servidor escucha únicamente en `127.0.0.1`.
 
 ## Requisitos
 
-- Windows 10 o superior.
-- Python 3.11 o superior.
-- Git.
-- Internet solo para instalar dependencias.
+- Windows 10 u 11 de 64 bits.
+- Python 3.13 de 64 bits.
+- Conexión a Internet durante la instalación y la primera ejecución de OCR; PaddleOCR descarga sus modelos en `data/models/`, que se excluye del repositorio.
 
-Al instalar Python, marca la opcion **Add Python to PATH**.
+## Preparación inicial
 
-## Instalacion rapida en Windows
+Abre PowerShell en la carpeta del proyecto y ejecuta:
 
-```bat
-install.bat
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-## Ejecucion rapida
+Edita `.env` para definir `APP_USER` y `APP_EMAIL`. Genera una clave de sesión y pega el resultado en `SESSION_SECRET`:
 
-```bat
-run.bat
+```powershell
+.\.venv\Scripts\python.exe -c 'import secrets; print(secrets.token_urlsafe(48))'
 ```
 
-Luego abre:
+Genera el hash de contraseña con el asistente incluido. Pide una contraseña de al menos 16 caracteres y su confirmación; el script actualiza `.env`:
 
-```text
-http://127.0.0.1:8000
+```powershell
+.\.venv\Scripts\python.exe scripts\set_password.py
 ```
 
-## Configuracion
+No subas `.env` ni `credenciales.txt` a GitHub. El `.gitignore` también excluye historiales y archivos de trabajo, respaldos, registros, modelos descargados y resultados locales.
 
-1. Copia `.env.example` como `.env`.
-2. Edita las variables de usuario, correo y seguridad.
-3. Genera una contrasena con:
+## Arranque
 
-```bat
-.venv\Scripts\python.exe scripts\set_password.py
+```powershell
+.\run.bat
 ```
 
-No subas `.env` a GitHub.
+Abre [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
-## Uso basico
+También puedes arrancar directamente:
 
-1. Entra con el usuario y contrasena configurados.
-2. Usa primero la pestana **Cadena de Custodia**.
-3. Usa despues **Informe Pericial**.
-4. En Cadena de Custodia no se usa ZIP ni imagenes.
-5. En Informe Pericial puedes subir ZIP con imagenes.
-6. Revisa o edita los datos desde **JSON / Datos avanzados** si hace falta.
-7. Genera el Word.
-
-## Archivos importantes
-
-```text
-app/                 Backend FastAPI
-static/              Interfaz web
-templates/           Plantillas DOCX
-scripts/             Utilidades locales
-requirements.txt     Dependencias Python
-install.bat          Instalador para Windows
-run.bat              Arranque local para Windows
-instructions.txt     Guia paso a paso
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-## Seguridad
+## Estructura
 
-- No subas `.env`.
-- No subas `.venv`.
-- No subas historial, temporales ni documentos generados.
-- El sistema esta pensado para ejecutarse localmente en Windows.
+- `app/`: aplicación FastAPI, autenticación y motores DOCX/OCR.
+- `templates/informe/`, `templates/cadena/` y `templates/aportacion/`: plantillas usadas por la aplicación.
+- `static/`: interfaz web.
+- `scripts/`: utilidades de arranque y mantenimiento.
+- `data/`: datos locales, historial, archivos de trabajo y modelos OCR descargados; no se versiona.
+- `backups/`: copias anteriores; no se versiona.
+
+Las plantillas usadas actualmente son `Plantilla_Informe.docx`, `Plantilla_Cadena.docx` y `Plantilla_Aportación.docx` dentro de sus respectivas carpetas. Las versiones anteriores se guardan en `backups/plantillas_descartadas/`.

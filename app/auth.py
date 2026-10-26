@@ -16,7 +16,7 @@ from fastapi import HTTPException, Request
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR / ".env", override=True)
 
 COOKIE_NAME = "docx_session"
 HASH_ALGORITHM = "pbkdf2_sha256"

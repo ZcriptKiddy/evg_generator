@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import secrets
 import shutil
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -11,7 +13,8 @@ from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from .auth import (
     COOKIE_NAME,
@@ -29,6 +32,10 @@ from .docx_engine import (
     analyze_docx_placeholders,
     render_docx,
 )
+from .ocr_engine import recognize_region
+
+
+logger = logging.getLogger(__name__)
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,14 +44,17 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 HISTORY_DIR = BASE_DIR / "data" / "history"
 WORK_DIR = BASE_DIR / "data" / "work"
 
-TEMPLATE_CADENA = TEMPLATES_DIR / "Plantilla_Cadena.docx"
-TEMPLATE_INFORME = TEMPLATES_DIR / "Plantilla_Informe.docx"
+TEMPLATE_CADENA = TEMPLATES_DIR / "cadena" / "Plantilla_Cadena.docx"
+TEMPLATE_INFORME = TEMPLATES_DIR / "informe" / "Plantilla_Informe.docx"
+TEMPLATE_APORTACION = TEMPLATES_DIR / "aportacion" / "Plantilla_Aportación.docx"
 INFORME_UPPERCASE_KEYS = {
     "Txt_NombreMP",
     "Txt_Cargo_UnidadSolicitante",
     "Txt_UnidadSolicitante",
     "Txt_Municipio",
 }
+IMAGE_UPLOAD_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
+MAX_OCR_REGION_BYTES = 20 * 1024 * 1024
 
 app = FastAPI(
     title="Generador de plantillas periciales",
@@ -54,18 +64,44 @@ app = FastAPI(
 )
 
 
+@app.post("/api/ocr/region")
+async def ocr_region(
+    image: UploadFile = File(...),
+    session: dict[str, Any] = Depends(require_auth),
+) -> dict[str, Any]:
+    extension = Path(image.filename or "region.png").suffix.lower()
+    if extension not in IMAGE_UPLOAD_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Formato de imagen no compatible.")
+    content = await image.read(MAX_OCR_REGION_BYTES + 1)
+    if len(content) > MAX_OCR_REGION_BYTES:
+        raise HTTPException(status_code=413, detail="La región seleccionada es demasiado grande.")
+    try:
+        return await run_in_threadpool(recognize_region, content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Fallo al ejecutar OCR sobre la región seleccionada")
+        detail = str(exc).strip() or type(exc).__name__
+        raise HTTPException(status_code=503, detail=f"No fue posible ejecutar el OCR: {detail}") from exc
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+
 @app.get("/")
 def index(request: Request):
     if read_session_token(request.cookies.get(COOKIE_NAME)) is None:
         return RedirectResponse("/login", status_code=303)
-    return FileResponse(STATIC_DIR / "index.html")
+    return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"), headers=NO_CACHE_HEADERS)
 
 
 @app.get("/login")
 def login_page(request: Request):
     if read_session_token(request.cookies.get(COOKIE_NAME)) is not None:
         return RedirectResponse("/", status_code=303)
-    return FileResponse(STATIC_DIR / "login.html")
+    return HTMLResponse((STATIC_DIR / "login.html").read_text(encoding="utf-8"), headers=NO_CACHE_HEADERS)
 
 
 @app.post("/login")
@@ -106,8 +142,9 @@ def plantillas(session: dict[str, Any] = Depends(require_auth)) -> dict[str, Any
     return {
         "templates": [_template_info(path) for path in _available_templates()],
         "defaults": {
-            "cadena": TEMPLATE_CADENA.name,
-            "informe": TEMPLATE_INFORME.name,
+            "cadena": _template_id(TEMPLATE_CADENA),
+            "informe": _template_id(TEMPLATE_INFORME),
+            "aportacion": _template_id(TEMPLATE_APORTACION),
         },
     }
 
@@ -164,18 +201,37 @@ async def generar_informe(
     session: dict[str, Any] = Depends(require_auth),
     json_text: str = Form(""),
     json_file: UploadFile | None = File(None),
-    images_zip: UploadFile | None = File(None),
+    images_zip: list[UploadFile] | None = File(None),
     template_id: str = Form(""),
 ) -> FileResponse:
     payload = await _read_payload(json_text=json_text, json_file=json_file)
     payload = _uppercase_fields(payload, INFORME_UPPERCASE_KEYS)
-    if images_zip is not None and images_zip.filename and not images_zip.filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Por ahora el informe acepta ZIP. El PDF lo dejamos para una segunda fase.")
+    _validate_image_uploads(images_zip)
 
     return await _generate(
         kind="informe",
         payload=payload,
         template_path=_resolve_template(template_id, default_path=TEMPLATE_INFORME),
+        images_zip=images_zip,
+    )
+
+
+@app.post("/api/generar/aportacion")
+async def generar_aportacion(
+    session: dict[str, Any] = Depends(require_auth),
+    json_text: str = Form(""),
+    json_file: UploadFile | None = File(None),
+    images_zip: list[UploadFile] | None = File(None),
+    template_id: str = Form(""),
+) -> FileResponse:
+    payload = await _read_payload(json_text=json_text, json_file=json_file)
+    payload = _uppercase_fields(payload, INFORME_UPPERCASE_KEYS)
+    _validate_image_uploads(images_zip)
+
+    return await _generate(
+        kind="aportacion",
+        payload=payload,
+        template_path=_resolve_template(template_id, default_path=TEMPLATE_APORTACION),
         images_zip=images_zip,
     )
 
@@ -186,14 +242,13 @@ async def generar_custom(
     template_file: UploadFile = File(...),
     json_text: str = Form(""),
     json_file: UploadFile | None = File(None),
-    images_zip: UploadFile | None = File(None),
+    images_zip: list[UploadFile] | None = File(None),
 ) -> FileResponse:
     payload = await _read_payload(json_text=json_text, json_file=json_file)
     payload = _uppercase_fields(payload, INFORME_UPPERCASE_KEYS)
     template_name = _validate_template_upload(template_file)
 
-    if images_zip is not None and images_zip.filename and not images_zip.filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=400, detail="El archivo de imagenes debe ser un ZIP.")
+    _validate_image_uploads(images_zip)
 
     return await _generate(
         kind="custom",
@@ -233,6 +288,11 @@ def historial(session: dict[str, Any] = Depends(require_auth)) -> list[dict[str,
     return sorted(records, key=lambda item: item.get("created_at", ""), reverse=True)
 
 
+@app.get("/api/capabilities")
+def capabilities(session: dict[str, Any] = Depends(require_auth)) -> dict[str, Any]:
+    return {"history_delete": True, "version": "2026.08.28.1"}
+
+
 @app.get("/api/historial/{record_id}/documento")
 def descargar_documento(record_id: str, session: dict[str, Any] = Depends(require_auth)) -> FileResponse:
     record_dir = _record_dir(record_id)
@@ -258,6 +318,13 @@ def descargar_json(record_id: str, session: dict[str, Any] = Depends(require_aut
         raise HTTPException(status_code=404, detail="No encontre el JSON.")
 
     return FileResponse(json_path, filename=f"{record_id}_entrada.json", media_type="application/json")
+
+
+@app.delete("/api/historial/{record_id}")
+def eliminar_historial(record_id: str, session: dict[str, Any] = Depends(require_auth)) -> dict[str, Any]:
+    record_dir = _record_dir(record_id)
+    shutil.rmtree(record_dir)
+    return {"deleted": True, "id": record_id}
 
 
 async def _read_payload(*, json_text: str, json_file: UploadFile | None) -> dict[str, Any]:
@@ -286,7 +353,7 @@ async def _generate(
     kind: str,
     payload: dict[str, Any],
     template_path: Path | None,
-    images_zip: UploadFile | None = None,
+    images_zip: list[UploadFile] | None = None,
     template_file: UploadFile | None = None,
     template_name: str | None = None,
 ) -> FileResponse:
@@ -304,19 +371,16 @@ async def _generate(
     if template_path is None:
         raise HTTPException(status_code=400, detail="Sube una plantilla DOCX.")
 
-    zip_path: Path | None = None
-    if images_zip is not None and images_zip.filename:
-        zip_path = work_dir / "imagenes.zip"
-        with zip_path.open("wb") as dst:
-            shutil.copyfileobj(images_zip.file, dst)
+    images_dir = _save_image_uploads(images_zip, work_dir / "imagenes_cargadas")
 
     placeholders = analyze_docx_placeholders(template_path)
     if kind == "cadena":
         placeholders["img"] = []
-    missing = _missing_placeholders(payload, placeholders, has_images_zip=zip_path is not None)
+    has_images = images_dir is not None
+    missing = _missing_placeholders(payload, placeholders, has_images_zip=has_images)
     generation_status = "parcial" if missing["txt"] or missing["img"] else "completo"
     generation_hash = secrets.token_hex(4)
-    render_payload = _payload_for_render(payload, placeholders, has_images_zip=zip_path is not None)
+    render_payload = _payload_for_render(payload, placeholders, has_images_zip=has_images)
 
     json_path = record_dir / "entrada.json"
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -331,7 +395,7 @@ async def _generate(
             payload=render_payload,
             output_path=output_path,
             work_dir=work_dir,
-            images_zip_path=zip_path,
+            images_dir_path=images_dir,
         )
     except TemplateMissingError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -376,28 +440,34 @@ def _available_templates() -> list[Path]:
     if not TEMPLATES_DIR.exists():
         return []
     return sorted(
-        (path for path in TEMPLATES_DIR.glob("*.docx") if path.is_file()),
-        key=lambda path: path.name.lower(),
+        (path for path in TEMPLATES_DIR.rglob("*.docx") if path.is_file()),
+        key=lambda path: _template_id(path).lower(),
     )
+
+
+def _template_id(path: Path) -> str:
+    return path.relative_to(TEMPLATES_DIR).as_posix()
 
 
 def _template_info(path: Path) -> dict[str, Any]:
     stat = path.stat()
+    rel_id = _template_id(path)
     return {
-        "id": path.name,
+        "id": rel_id,
+        "kind": path.parent.name,
         "name": path.stem,
         "file_name": path.name,
+        "path": f"templates/{rel_id}",
         "size_bytes": stat.st_size,
         "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
     }
 
 
 def _resolve_template(template_id: str, *, default_path: Path) -> Path:
-    selected = template_id.strip()
+    selected = template_id.strip().replace("\\", "/")
     if not selected:
         return default_path
-
-    if "/" in selected or "\\" in selected:
+    if selected.startswith("/") or ".." in Path(selected).parts:
         raise HTTPException(status_code=400, detail="Plantilla invalida.")
 
     candidate = TEMPLATES_DIR / selected
@@ -407,8 +477,10 @@ def _resolve_template(template_id: str, *, default_path: Path) -> Path:
     except OSError as exc:
         raise HTTPException(status_code=400, detail="Plantilla invalida.") from exc
 
-    if resolved_candidate.parent != templates_dir:
-        raise HTTPException(status_code=400, detail="Plantilla invalida.")
+    try:
+        resolved_candidate.relative_to(templates_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Plantilla invalida.") from exc
     if candidate.suffix.lower() != ".docx" or not candidate.is_file():
         raise HTTPException(status_code=400, detail="No encontre la plantilla seleccionada.")
 
@@ -422,6 +494,71 @@ def _validate_template_upload(template_file: UploadFile) -> str:
     if Path(file_name).suffix.lower() != ".docx":
         raise HTTPException(status_code=400, detail="La plantilla debe ser un archivo .docx.")
     return file_name
+
+
+def _validate_image_uploads(files: list[UploadFile] | None) -> None:
+    for upload in files or []:
+        file_name = _upload_file_name(upload.filename)
+        if not file_name:
+            continue
+
+        ext = Path(file_name).suffix.lower()
+        if ext != ".zip" and ext not in IMAGE_UPLOAD_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Sube un ZIP y/o imagenes JPG, JPEG, PNG, WEBP, BMP o TIFF.")
+
+
+def _save_image_uploads(files: list[UploadFile] | None, target_dir: Path) -> Path | None:
+    uploads = [upload for upload in files or [] if _upload_file_name(upload.filename)]
+    if not uploads:
+        return None
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    saved = 0
+
+    for upload in uploads:
+        file_name = _upload_file_name(upload.filename)
+        ext = Path(file_name).suffix.lower()
+
+        if ext == ".zip":
+            try:
+                with zipfile.ZipFile(upload.file) as archive:
+                    for info in archive.infolist():
+                        if info.is_dir():
+                            continue
+
+                        source_name = Path(info.filename.replace("\\", "/")).name
+                        if Path(source_name).suffix.lower() not in IMAGE_UPLOAD_EXTENSIONS:
+                            continue
+
+                        target_path = target_dir / _unique_file_name(target_dir, source_name)
+                        with archive.open(info) as src, target_path.open("wb") as dst:
+                            shutil.copyfileobj(src, dst)
+                        saved += 1
+            except zipfile.BadZipFile as exc:
+                raise HTTPException(status_code=400, detail=f"ZIP invalido: {file_name}") from exc
+            continue
+
+        target_path = target_dir / _unique_file_name(target_dir, file_name)
+        with target_path.open("wb") as dst:
+            shutil.copyfileobj(upload.file, dst)
+        saved += 1
+
+    if not saved:
+        raise HTTPException(status_code=400, detail="No se encontraron imagenes compatibles.")
+    return target_dir
+
+
+def _unique_file_name(directory: Path, file_name: str) -> str:
+    candidate = Path(file_name).name
+    stem = Path(candidate).stem
+    suffix = Path(candidate).suffix
+    counter = 1
+
+    while (directory / candidate).exists():
+        candidate = f"{stem}_{counter}{suffix}"
+        counter += 1
+
+    return candidate
 
 
 def _upload_file_name(file_name: str | None) -> str:
@@ -481,13 +618,15 @@ def _download_name(
     status: str | None = None,
     generation_hash: str | None = None,
 ) -> str:
-    if kind in {"cadena", "informe", "custom"} and status and generation_hash:
+    if kind in {"cadena", "informe", "aportacion", "custom"} and status and generation_hash:
         return f"{status}_{generation_hash}.docx"
 
     if kind == "cadena":
         base = payload.get("Txt_No_Carpeta") or payload.get("Txt_CarpetaInvestigacion") or "cadena"
     elif kind == "informe":
         base = payload.get("Txt_CarpetaInvestigacion") or payload.get("Txt_OficioInterno") or "informe"
+    elif kind == "aportacion":
+        base = payload.get("Txt_CarpetaInvestigacion") or payload.get("Txt_OficioInterno") or "aportacion"
     else:
         base = (
             payload.get("Txt_CarpetaInvestigacion")
